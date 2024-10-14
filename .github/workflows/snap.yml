@@ -1,40 +1,7 @@
 name: Snap.
 
 on:
-  push:
-    paths-ignore:
-      - 'docs/**'
-      - '**.md'
-      - 'changelog.txt'
-      - 'LEGAL'
-      - 'LICENSE'
-      - '.github/**'
-      - '!.github/workflows/snap.yml'
-      - 'Telegram/build/**'
-      - 'Telegram/Resources/uwp/**'
-      - 'Telegram/Resources/winrc/**'
-      - 'Telegram/SourceFiles/platform/win/**'
-      - 'Telegram/SourceFiles/platform/mac/**'
-      - 'Telegram/Telegram/**'
-      - 'Telegram/configure.bat'
-      - 'Telegram/Telegram.plist'
-  pull_request:
-    paths-ignore:
-      - 'docs/**'
-      - '**.md'
-      - 'changelog.txt'
-      - 'LEGAL'
-      - 'LICENSE'
-      - '.github/**'
-      - '!.github/workflows/snap.yml'
-      - 'Telegram/build/**'
-      - 'Telegram/Resources/uwp/**'
-      - 'Telegram/Resources/winrc/**'
-      - 'Telegram/SourceFiles/platform/win/**'
-      - 'Telegram/SourceFiles/platform/mac/**'
-      - 'Telegram/Telegram/**'
-      - 'Telegram/configure.bat'
-      - 'Telegram/Telegram.plist'
+  workflow_dispatch:
 
 jobs:
 
@@ -57,8 +24,10 @@ jobs:
           sudo iptables -P FORWARD ACCEPT
           sudo snap install --classic snapcraft
           sudo usermod -aG lxd $USER
+          newgrp lxd <<EONG
           sudo snap run lxd init --auto
           sudo snap run lxd waitready
+          EONG
 
       - name: Free up some disk space.
         uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be
@@ -69,7 +38,7 @@ jobs:
       - name: Move artifact.
         if: env.UPLOAD_ARTIFACT == 'true'
         run: |
-          artifact_name=$(echo fagram_*.snap)
+          artifact_name=$(ls fagram_*.snap)
           echo "ARTIFACT_NAME=$artifact_name" >> $GITHUB_ENV
 
           mkdir artifact
