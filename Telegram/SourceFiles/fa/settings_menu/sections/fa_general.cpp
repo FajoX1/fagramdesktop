@@ -6,8 +6,6 @@ For license and copyright information please follow this link:
 https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 */
 
-#include <ui/boxes/single_choice_box.h>
-
 #include "fa/settings/fa_settings.h"
 #include "fa/settings_menu/sections/fa_general.h"
 #include "fa/utils/telegram_helpers.h"
