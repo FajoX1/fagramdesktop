@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 AppVersion         1000005
 AppVersionStrMajor 1.0
 AppVersionStrSmall 1.0.5
@@ -5,3 +6,12 @@ AppVersionStr      1.0.5
 BetaChannel        0
 AlphaVersion       0
 AppVersionOriginal 1.0.5
+=======
+AppVersion         5006002
+AppVersionStrMajor 5.6
+AppVersionStrSmall 5.6.2
+AppVersionStr      5.6.2
+BetaChannel        0
+AlphaVersion       0
+AppVersionOriginal 5.6.2
+>>>>>>> upstream/dev
