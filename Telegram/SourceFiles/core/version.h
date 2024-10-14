@@ -20,16 +20,9 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 // used in Updater.cpp and Setup.iss for Windows
 constexpr auto AppId = "{bce922fb-9080-4f17-b79a-6d7ecfc98e00}"_cs;
 constexpr auto AppNameOld = "Telegram Win (Unofficial)"_cs;
-<<<<<<< HEAD
 constexpr auto AppName = "FAgram Desktop"_cs;
 constexpr auto AppFile = "FAgram"_cs;
 constexpr auto AppVersion = 1000005;
 constexpr auto AppVersionStr = "1.0.5";
-=======
-constexpr auto AppName = "Telegram Desktop"_cs;
-constexpr auto AppFile = "Telegram"_cs;
-constexpr auto AppVersion = 5006002;
-constexpr auto AppVersionStr = "5.6.2";
->>>>>>> upstream/dev
 constexpr auto AppBetaVersion = false;
 constexpr auto AppAlphaVersion = TDESKTOP_ALPHA_VERSION;
