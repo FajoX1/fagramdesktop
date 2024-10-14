@@ -10,6 +10,7 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 
 #include "fa/settings/fa_settings.h"
 #include "fa/settings_menu/sections/fa_general.h"
+#include "fa/utils/telegram_helpers.h"
 
 #include "lang_auto.h"
 #include "mainwindow.h"
@@ -63,7 +64,7 @@ namespace Settings {
         setupContent(controller);
     }
 
-    void FAGeneral::SetupGeneral(not_null<Ui::VerticalLayout *> container) {
+    void FAGeneral::SetupGeneral(not_null<Ui::VerticalLayout *> container, not_null<Window::SessionController *> controller) {
         Ui::AddSubsectionTitle(container, rpl::single(QString("General")));
 
 		SettingsMenuJsonSwitch(Show Seconds of Message, seconds_message);
@@ -77,10 +78,20 @@ namespace Settings {
         Ui::AddDivider(container);
         SettingsMenuJsonSwitch(Hide Stories, hide_stories)
 		Ui::AddDividerText(container, rpl::single(QString("^ This setting will be changed after restart of the client ^")));
+        Ui::AddSkip(container);
+        Ui::AddDivider(container);
+        Ui::AddSkip(container);
+        container->add(object_ptr<Button>(
+            container,
+            rpl::single(QString("Clean DebugLogs")),
+            st::settingsButtonNoIcon
+        ))->clicked([=] {
+            cleanDebugLogs(controller);
+        });
     }
 
     void FAGeneral::SetupFAGeneral(not_null<Ui::VerticalLayout *> container, not_null<Window::SessionController *> controller) {
-		Ui::AddSkip(container);
+		Ui::AddSkip(container, controller);
     	SetupGeneral(container);
     }
 

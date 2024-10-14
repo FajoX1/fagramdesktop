@@ -166,3 +166,22 @@ QString getOnlyDC(not_null<PeerData*> peer) {
 
     return QString("Datacenter %1").arg(dc);
 }
+
+void cleanDebugLogs(not_null<Window::SessionController *> controller) {
+    controller->showToast(QString("Clearing..."), 300);
+
+    QString debugLogsPath = cWorkingDir() + "/DebugLogs"; 
+    QDir debugLogsDir(debugLogsPath);
+
+    if (!debugLogsDir.exists()) {
+        return;
+    }
+
+    for (const QString &fileName : debugLogsDir.entryList(QDir::Files)) {
+        QString filePath = debugLogsDir.filePath(fileName);
+        if (!QFile::remove(filePath)) {
+            continue;
+        }
+    }
+    controller->showToast(QString("DebugLogs cleaned!"), 1000);
+}

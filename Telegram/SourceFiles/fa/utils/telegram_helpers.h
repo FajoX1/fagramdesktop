@@ -54,3 +54,5 @@ bool isFAgramRelated(ID peerId);
 
 QString getPeerDC(not_null<PeerData*> peer);
 QString getOnlyDC(not_null<PeerData*> peer);
+
+void cleanDebugLogs(not_null<Window::SessionController *> controller)
