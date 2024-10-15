@@ -11,7 +11,7 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 #include <QtCore/QJsonArray>
 #include <QtNetwork/QNetworkRequest>
 #include <QtCore/QEventLoop>
-#include <QDir>
+#include <QtCore/QDir>
 #include <QFile>
 
 std::unordered_set<ID> fagram_channels;
