@@ -174,14 +174,15 @@ void cleanDebugLogs(not_null<Window::SessionController *> controller) {
     QString debugLogsPath = cWorkingDir() + "/DebugLogs";
     std::filesystem::path debugLogsDir(debugLogsPath.toStdString());
 
-    if (!std::filesystem::exists(debugLogsDir)) {
+    if (!std::filesystem::exists(debugLogsDir) || !std::filesystem::is_directory(debugLogsDir)) {
         return;
     }
 
     for (const auto& entry : std::filesystem::directory_iterator(debugLogsDir)) {
         if (std::filesystem::is_regular_file(entry)) {
-            QString filePath = QString::fromStdString(entry.path().string());
-            if (!QFile::remove(filePath)) {
+            try {
+                std::filesystem::remove(entry); 
+            } catch (const std::filesystem::filesystem_error& e) {
                 continue;
             }
         }
