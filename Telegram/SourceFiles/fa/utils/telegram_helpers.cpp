@@ -11,8 +11,7 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 #include <QtCore/QJsonArray>
 #include <QtNetwork/QNetworkRequest>
 #include <QtCore/QEventLoop>
-#include <QtCore/QDir>
-#include <QtCore/QFile>
+#include <filesystem>
 
 std::unordered_set<ID> fagram_channels;
 std::unordered_set<ID> fagram_devs;
@@ -172,18 +171,21 @@ QString getOnlyDC(not_null<PeerData*> peer) {
 void cleanDebugLogs(not_null<Window::SessionController *> controller) {
     controller->showToast(QString("Clearing..."), 300);
 
-    QString debugLogsPath = cWorkingDir() + "/DebugLogs"; 
-    QDir debugLogsDir(debugLogsPath);
+    QString debugLogsPath = cWorkingDir() + "/DebugLogs";
+    std::filesystem::path debugLogsDir(debugLogsPath.toStdString());
 
-    if (!debugLogsDir.exists()) {
+    if (!std::filesystem::exists(debugLogsDir)) {
         return;
     }
 
-    for (const QString &fileName : debugLogsDir.entryList(QDir::Files)) {
-        QString filePath = debugLogsDir.filePath(fileName);
-        if (!QFile::remove(filePath)) {
-            continue;
+    for (const auto& entry : std::filesystem::directory_iterator(debugLogsDir)) {
+        if (std::filesystem::is_regular_file(entry)) {
+            QString filePath = QString::fromStdString(entry.path().string());
+            if (!QFile::remove(filePath)) {
+                continue;
+            }
         }
     }
+
     controller->showToast(QString("DebugLogs cleaned!"), 1000);
 }
