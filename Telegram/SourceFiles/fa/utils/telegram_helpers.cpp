@@ -169,7 +169,7 @@ QString getOnlyDC(not_null<PeerData*> peer) {
 }
 
 void cleanDebugLogs(not_null<Window::SessionController *> controller) {
-    controller->showToast(QString("Clearing..."), 300);
+  //  controller->showToast(QString("Clearing..."), 300);
 
     QString debugLogsPath = cWorkingDir() + "/DebugLogs";
     std::filesystem::path debugLogsDir(debugLogsPath.toStdString());
@@ -188,5 +188,5 @@ void cleanDebugLogs(not_null<Window::SessionController *> controller) {
         }
     }
 
-    controller->showToast(QString("DebugLogs cleaned!"), 1000);
+  //  controller->showToast(QString("DebugLogs cleaned!"), 1000);
 }

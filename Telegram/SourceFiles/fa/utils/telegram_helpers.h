@@ -8,8 +8,6 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 
 #pragma once
 
-#include <QDebug>
-
 #include "apiwrap.h"
 #include "api/api_text_entities.h"
 
