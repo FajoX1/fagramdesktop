@@ -79,13 +79,15 @@ namespace Settings {
         Ui::AddSkip(container);
         Ui::AddDivider(container);
         Ui::AddSkip(container);
-        container->add(object_ptr<Button>(
-            container,
-            rpl::single(QString("Clean DebugLogs")),
-            st::settingsButtonNoIcon
-        ))->clicked([=] {
-            cleanDebugLogs(controller);
-        });
+
+        AddButtonWithIcon(
+		    container,
+		    rpl::single(QString("Clean DebugLogs")),
+		    st::settingsButton,
+		    { &st::menuIconExport }
+	    )->addClickHandler([=] {
+		    cleanDebugLogs(controller);
+	    });
     }
 
     void FAGeneral::SetupFAGeneral(not_null<Ui::VerticalLayout *> container, not_null<Window::SessionController *> controller) {
