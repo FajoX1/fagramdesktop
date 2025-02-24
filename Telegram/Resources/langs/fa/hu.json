@@ -1,8 +1,8 @@
 {
-    "fa_client_preferences": "FAgram Preferences",
-    "fa_copy_id": "Copy ID",
-    "fa_id_copied": "ID copied",
-    "fa_copy_registration_date": "Copy Registration date",
+    "fa_client_preferences": "FAgram Beállítások",
+    "fa_copy_id": "ID másolása",
+    "fa_id_copied": "ID másolva",
+    "fa_copy_registration_date": "Regisztrálási dátum másolása",
     "fa_copy_callback_data": "Copy Callback data",
     "fa_registration_date": "Registration date",
     "fa_not_found": "Not found.",
