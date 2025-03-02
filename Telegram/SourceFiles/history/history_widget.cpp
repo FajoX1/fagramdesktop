@@ -7,6 +7,7 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 */
 #include "history/history_widget.h"
 
+#include "fa/lang/fa_lang.h"
 #include "fa/settings/fa_settings.h"
 
 #include "api/api_editing.h"
@@ -262,6 +263,10 @@ HistoryWidget::HistoryWidget(
 , _muteUnmute(
 	this,
 	tr::lng_channel_mute(tr::now).toUpper(),
+	st::historyComposeButton)
+, _discuss(
+	this,
+	FAlang::Translate("fa_discuss_button").toUpper(),
 	st::historyComposeButton)
 , _reportMessages(this, QString(), st::historyComposeButton)
 , _attachToggle(this, st::historyAttach)
