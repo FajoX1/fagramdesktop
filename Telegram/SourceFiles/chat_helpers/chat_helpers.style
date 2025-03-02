@@ -855,6 +855,17 @@ historyComposeButton: FlatButton {
 		color: historyComposeButtonBgRipple;
 	}
 }
+historyGiftToChannel: IconButton(defaultIconButton) {
+	width: 46px;
+	height: 46px;
+
+	icon: icon{{ "menu/gift_premium", windowActiveTextFg }};
+	iconOver: icon{{ "menu/gift_premium", windowActiveTextFg }};
+
+	rippleAreaPosition: point(3px, 3px);
+	rippleAreaSize: 40px;
+	ripple: universalRippleAnimation;
+}
 historyUnblock: FlatButton(historyComposeButton) {
 	color: attentionButtonFg;
 	overColor: attentionButtonFgOver;

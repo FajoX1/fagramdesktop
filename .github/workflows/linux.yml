@@ -34,6 +34,7 @@ jobs:
             echo "ARTIFACT_NAME=fagram" >> $GITHUB_ENV
           fi
           docker run --rm \
+          -u $(id -u) \
           -v $PWD:/usr/src/tdesktop \
           -e CONFIG=Release \
           fagram:build \

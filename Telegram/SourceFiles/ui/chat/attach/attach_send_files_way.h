@@ -11,6 +11,12 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 
 namespace Ui {
 
+enum class AttachActionType {
+	ToggleSpoiler,
+	EditCover,
+	ClearCover,
+};
+
 enum class AttachButtonType {
 	Edit,
 	Delete,

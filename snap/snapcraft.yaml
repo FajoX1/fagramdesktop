@@ -94,7 +94,6 @@ parts:
       - libasound2-dev
       - libavif-dev
       - libboost-regex-dev
-      - libfmt-dev
       - libgirepository1.0-dev
       - libglib2.0-dev
       - libheif-dev
@@ -112,6 +111,8 @@ parts:
       - libasound2t64
       - libavif16
       - libboost-regex1.83.0
+      - libgeoclue-2-0
+      - libgeocode-glib-2-0
       - libglib2.0-0t64
       - libheif1
       - libopenal1
@@ -164,7 +165,7 @@ parts:
   patches:
     source: https://github.com/desktop-app/patches.git
     source-depth: 1
-    source-commit: cf3b896e00c288143fce51862dbd9b1c86df1960
+    source-commit: 61bbacab28d377d0a2771cc87e008554e2f23ffb
     plugin: dump
     override-pull: |
       craftctl default
@@ -276,15 +277,15 @@ parts:
       - -DJPEGXL_ENABLE_SKCMS=OFF
     stage:
       - -./usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libbrotli*
+      - -./usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libhwy*
     prime:
       - -./usr/bin
       - -./usr/include
+      - -./usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/cmake
       - -./usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/pkgconfig
       - -./usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/*.a
       - -./usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/*.so
       - -./usr/share
-    after:
-      - patches
 
   qt:
     plugin: nil
@@ -374,7 +375,7 @@ parts:
       - mesa-vulkan-drivers
       - xkb-data
     override-pull: |
-      QT=6.8.1
+      QT=6.8.2
 
       git clone -b v${QT} --depth=1 https://github.com/qt/qt5.git .
       git submodule update --init --recursive --depth=1 qtbase qtdeclarative qtwayland qtimageformats qtsvg qtshadertools
@@ -400,15 +401,16 @@ parts:
       - -./usr/doc
       - -./usr/include
       - -./usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/cmake
-      - -./usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/metatypes
       - -./usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/pkgconfig
       - -./usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/*.a
       - -./usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/*.la
       - -./usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/*.prl
       - -./usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/*.so
       - -./usr/libexec
+      - -./usr/metatypes
       - -./usr/mkspecs
       - -./usr/modules
+      - -./**/objects-*
     after:
       - libjxl
       - patches

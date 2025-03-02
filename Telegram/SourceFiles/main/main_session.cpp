@@ -121,6 +121,7 @@ Session::Session(
 , _credits(std::make_unique<Data::Credits>(this))
 , _cachedReactionIconFactory(std::make_unique<ReactionIconFactory>())
 , _supportHelper(Support::Helper::Create(this))
+, _fastButtonsBots(std::make_unique<Support::FastButtonsBots>(this))
 , _saveSettingsTimer([=] { saveSettings(); }) {
 	Expects(_settings != nullptr);
 
@@ -431,6 +432,10 @@ Support::Helper &Session::supportHelper() const {
 
 Support::Templates& Session::supportTemplates() const {
 	return supportHelper().templates();
+}
+
+Support::FastButtonsBots &Session::fastButtonsBots() const {
+	return *_fastButtonsBots;
 }
 
 void Session::addWindow(not_null<Window::SessionController*> controller) {

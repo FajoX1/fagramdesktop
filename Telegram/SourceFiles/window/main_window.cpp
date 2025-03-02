@@ -87,7 +87,47 @@ base::options::toggle OptionDisableTouchbar({
 	.restartRequired = true,
 });
 
-} // namespace.
+[[nodiscard]] QString TitleFromSeparateId(
+		const Core::WindowTitleContent &settings,
+		const SeparateId &id) {
+	if (id.sharedMedia == SeparateSharedMediaType::None
+		|| !id.sharedMediaPeer()) {
+		return QString();
+	}
+	const auto result = (id.sharedMedia == SeparateSharedMediaType::Photos)
+		? tr::lng_media_type_photos(tr::now)
+		: (id.sharedMedia == SeparateSharedMediaType::Videos)
+		? tr::lng_media_type_videos(tr::now)
+		: (id.sharedMedia == SeparateSharedMediaType::Files)
+		? tr::lng_media_type_files(tr::now)
+		: (id.sharedMedia == SeparateSharedMediaType::Audio)
+		? tr::lng_media_type_songs(tr::now)
+		: (id.sharedMedia == SeparateSharedMediaType::Links)
+		? tr::lng_media_type_links(tr::now)
+		: (id.sharedMedia == SeparateSharedMediaType::GIF)
+		? tr::lng_media_type_gifs(tr::now)
+		: (id.sharedMedia == SeparateSharedMediaType::Voices)
+		? tr::lng_media_type_audios(tr::now)
+		: QString();
+
+	if (settings.hideChatName) {
+		return result;
+	}
+	const auto peer = id.sharedMediaPeer();
+	const auto topicRootId = id.sharedMediaTopicRootId();
+	const auto topic = topicRootId
+		? peer->forumTopicFor(topicRootId)
+		: nullptr;
+	const auto name = topic
+		? topic->title()
+		: peer->isSelf()
+		? tr::lng_saved_messages(tr::now)
+		: peer->name();
+	const auto wrapped = st::wrap_rtl(name);
+	return name + u" @ "_q + result;
+}
+
+} // namespace
 
 const char kOptionNewWindowsSizeAsFirst[] = "new-windows-size-as-first";
 const char kOptionDisableTouchbar[] = "touchbar-disabled";
@@ -220,8 +260,6 @@ QIcon CreateIcon(Main::Session *session, bool returnNullIfDefault) {
 }
 
 QImage GenerateCounterLayer(CounterLayerArgs &&args) {
-	// platform/linux/main_window_linux depends on count used the same
-	// way for all the same (count % 1000) values.
 	const auto count = args.count.value();
 	const auto text = (count < 1000)
 		? QString::number(count)
@@ -298,6 +336,8 @@ QImage GenerateCounterLayer(CounterLayerArgs &&args) {
 }
 
 QImage WithSmallCounter(QImage image, CounterLayerArgs &&args) {
+	// platform/linux/tray_linux depends on count used the same
+	// way for all the same (count % 100) values.
 	const auto count = args.count.value();
 	const auto text = (count < 100)
 		? QString::number(count)
@@ -862,6 +902,13 @@ void MainWindow::updateTitle() {
 		&& Core::App().domain().accountsAuthedCount() > 1)
 		? st::wrap_rtl(session->authedName())
 		: QString();
+	const auto separateIdTitle = session
+		? TitleFromSeparateId(settings, session->windowId())
+		: QString();
+	if (!separateIdTitle.isEmpty()) {
+		setTitle(separateIdTitle);
+		return;
+	}
 	const auto key = (session && !settings.hideChatName)
 		? session->activeChatCurrent()
 		: Dialogs::Key();

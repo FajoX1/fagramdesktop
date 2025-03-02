@@ -139,422 +139,9 @@ bool UseGNotification() {
 	return KSandbox::isFlatpak() && !ServiceRegistered;
 }
 
-GLib::Variant AnyVectorToVariant(const std::vector<std::any> &value) {
-	return GLib::Variant::new_array(
-		value | ranges::views::transform([](const std::any &value) {
-			try {
-				return GLib::Variant::new_variant(
-					GLib::Variant::new_uint64(std::any_cast<uint64>(value)));
-			} catch (...) {
-			}
-
-			try {
-				return GLib::Variant::new_variant(
-					GLib::Variant::new_int64(std::any_cast<int64>(value)));
-			} catch (...) {
-			}
-
-			try {
-				return GLib::Variant::new_variant(
-					AnyVectorToVariant(
-						std::any_cast<std::vector<std::any>>(value)));
-			} catch (...) {
-			}
-
-			return GLib::Variant(nullptr);
-		}) | ranges::to_vector);
-}
-
-class NotificationData final : public base::has_weak_ptr {
-public:
-	using NotificationId = Window::Notifications::Manager::NotificationId;
-	using Info = Window::Notifications::NativeManager::NotificationInfo;
-
-	NotificationData(
-		not_null<Manager*> manager,
-		XdgNotifications::NotificationsProxy proxy,
-		NotificationId id);
-
-	[[nodiscard]] bool init(const Info &info);
-
-	NotificationData(const NotificationData &other) = delete;
-	NotificationData &operator=(const NotificationData &other) = delete;
-	NotificationData(NotificationData &&other) = delete;
-	NotificationData &operator=(NotificationData &&other) = delete;
-
-	~NotificationData();
-
-	void show();
-	void close();
-	void setImage(QImage image);
-
-private:
-	const not_null<Manager*> _manager;
-	NotificationId _id;
-
-	Media::Audio::LocalDiskCache _sounds;
-
-	Gio::Application _application;
-	Gio::Notification _notification;
-	const std::string _guid;
-
-	XdgNotifications::NotificationsProxy _proxy;
-	XdgNotifications::Notifications _interface;
-	std::string _title;
-	std::string _body;
-	std::vector<std::string> _actions;
-	GLib::VariantDict _hints;
-	std::string _imageKey;
-
-	uint _notificationId = 0;
-	ulong _actionInvokedSignalId = 0;
-	ulong _activationTokenSignalId = 0;
-	ulong _notificationRepliedSignalId = 0;
-	ulong _notificationClosedSignalId = 0;
-
-};
-
-using Notification = std::unique_ptr<NotificationData>;
-
-NotificationData::NotificationData(
-	not_null<Manager*> manager,
-	XdgNotifications::NotificationsProxy proxy,
-	NotificationId id)
-: _manager(manager)
-, _id(id)
-, _sounds(cWorkingDir() + u"tdata/audio_cache"_q)
-, _application(UseGNotification()
-		? Gio::Application::get_default()
-		: nullptr)
-, _guid(_application ? std::string(Gio::dbus_generate_guid()) : std::string())
-, _proxy(proxy)
-, _interface(proxy)
-, _hints(GLib::VariantDict::new_())
-, _imageKey(GetImageKey()) {
-}
-
-bool NotificationData::init(const Info &info) {
-	const auto &title = info.title;
-	const auto &subtitle = info.subtitle;
-
-	if (_application) {
-		_notification = Gio::Notification::new_(
-			subtitle.isEmpty()
-				? title.toStdString()
-				: subtitle.toStdString() + " (" + title.toStdString() + ')');
-
-		_notification.set_body(info.message.toStdString());
-
-		_notification.set_icon(
-			Gio::ThemedIcon::new_(base::IconName().toStdString()));
-
-		// for chat messages, according to
-		// https://docs.gtk.org/gio/enum.NotificationPriority.html
-		_notification.set_priority(Gio::NotificationPriority::HIGH_);
-
-		// glib 2.70+, we keep glib 2.56+ compatibility
-		static const auto set_category = [] {
-			// reset dlerror after dlsym call
-			const auto guard = gsl::finally([] { dlerror(); });
-			return reinterpret_cast<void(*)(GNotification*, const gchar*)>(
-				dlsym(RTLD_DEFAULT, "g_notification_set_category"));
-		}();
-
-		if (set_category) {
-			set_category(_notification.gobj_(), "im.received");
-		}
-
-		const auto idVariant = AnyVectorToVariant(_id.toAnyVector());
-
-		_notification.set_default_action_and_target(
-			"app.notification-activate",
-			idVariant);
-
-		if (!info.options.hideMarkAsRead) {
-			_notification.add_button_with_target(
-				tr::lng_context_mark_read(tr::now).toStdString(),
-				"app.notification-mark-as-read",
-				idVariant);
-		}
-
-		return true;
-	}
-
-	if (!_interface) {
-		return false;
-	}
-
-	const auto &text = info.message;
-	if (HasCapability("body-markup")) {
-		_title = title.toStdString();
-
-		_body = subtitle.isEmpty()
-			? text.toHtmlEscaped().toStdString()
-			: u"<b>%1</b>\n%2"_q.arg(
-				subtitle.toHtmlEscaped(),
-				text.toHtmlEscaped()).toStdString();
-	} else {
-		_title = subtitle.isEmpty()
-			? title.toStdString()
-			: subtitle.toStdString() + " (" + title.toStdString() + ')';
-
-		_body = text.toStdString();
-	}
-
-	if (HasCapability("actions")) {
-		_actions.push_back("default");
-		_actions.push_back(tr::lng_open_link(tr::now).toStdString());
-
-		if (!info.options.hideMarkAsRead) {
-			// icon name according to https://specifications.freedesktop.org/icon-naming-spec/icon-naming-spec-latest.html
-			_actions.push_back("mail-mark-read");
-			_actions.push_back(
-				tr::lng_context_mark_read(tr::now).toStdString());
-		}
-
-		if (HasCapability("inline-reply")
-				&& !info.options.hideReplyButton) {
-			_actions.push_back("inline-reply");
-			_actions.push_back(
-				tr::lng_notification_reply(tr::now).toStdString());
-
-			_notificationRepliedSignalId
-				= _interface.signal_notification_replied().connect([=](
-						XdgNotifications::Notifications,
-						uint id,
-						std::string text) {
-					Core::Sandbox::Instance().customEnterFromEventLoop([&] {
-						if (id == _notificationId) {
-							_manager->notificationReplied(
-								_id,
-								{ QString::fromStdString(text), {} });
-						}
-					});
-				});
-		}
-
-		_actionInvokedSignalId = _interface.signal_action_invoked().connect(
-			[=](
-					XdgNotifications::Notifications,
-					uint id,
-					std::string actionName) {
-				Core::Sandbox::Instance().customEnterFromEventLoop([&] {
-					if (id == _notificationId) {
-						if (actionName == "default") {
-							_manager->notificationActivated(_id);
-						} else if (actionName == "mail-mark-read") {
-							_manager->notificationReplied(_id, {});
-						}
-					}
-				});
-			});
-
-		_activationTokenSignalId
-			= _interface.signal_activation_token().connect([=](
-					XdgNotifications::Notifications,
-					uint id,
-					std::string token) {
-				if (id == _notificationId) {
-					GLib::setenv("XDG_ACTIVATION_TOKEN", token, true);
-				}
-			});
-	}
-
-	if (HasCapability("action-icons")) {
-		_hints.insert_value("action-icons", GLib::Variant::new_boolean(true));
-	}
-
-	if (HasCapability("sound")) {
-		const auto sound = info.sound
-			? info.sound()
-			: Media::Audio::LocalSound();
-
-		const auto path = sound
-			? _sounds.path(sound).toStdString()
-			: std::string();
-
-		if (!path.empty()) {
-			_hints.insert_value(
-				"sound-file",
-				GLib::Variant::new_string(path));
-		} else {
-			_hints.insert_value(
-				"suppress-sound",
-				GLib::Variant::new_boolean(true));
-		}
-	}
-
-	if (HasCapability("x-canonical-append")) {
-		_hints.insert_value(
-			"x-canonical-append",
-			GLib::Variant::new_string("true"));
-	}
-
-	_hints.insert_value("category", GLib::Variant::new_string("im.received"));
-
-	_hints.insert_value("desktop-entry", GLib::Variant::new_string(
-		QGuiApplication::desktopFileName().toStdString()));
-
-	_notificationClosedSignalId =
-		_interface.signal_notification_closed().connect([=](
-				XdgNotifications::Notifications,
-				uint id,
-				uint reason) {
-			Core::Sandbox::Instance().customEnterFromEventLoop([&] {
-				/*
-				* From: https://specifications.freedesktop.org/notification-spec/latest/ar01s09.html
-				* The reason the notification was closed
-				* 1 - The notification expired.
-				* 2 - The notification was dismissed by the user.
-				* 3 - The notification was closed by a call to CloseNotification.
-				* 4 - Undefined/reserved reasons.
-				*
-				* If the notification was dismissed by the user (reason == 2), the notification is not kept in notification history.
-				* We do not need to send a "CloseNotification" call later to clear it from history.
-				* Therefore we can drop the notification reference now.
-				* In all other cases we keep the notification reference so that we may clear the notification later from history,
-				* if the message for that notification is read (e.g. chat is opened or read from another device).
-				*/
-				if (id == _notificationId && reason == 2) {
-					_manager->clearNotification(_id);
-				}
-			});
-		});
-
-	return true;
-}
-
-NotificationData::~NotificationData() {
-	if (_interface) {
-		if (_actionInvokedSignalId != 0) {
-			_interface.disconnect(_actionInvokedSignalId);
-		}
-
-		if (_activationTokenSignalId != 0) {
-			_interface.disconnect(_activationTokenSignalId);
-		}
-
-		if (_notificationRepliedSignalId != 0) {
-			_interface.disconnect(_notificationRepliedSignalId);
-		}
-
-		if (_notificationClosedSignalId != 0) {
-			_interface.disconnect(_notificationClosedSignalId);
-		}
-	}
-}
-
-void NotificationData::show() {
-	if (_application && _notification) {
-		_application.send_notification(_guid, _notification);
-		return;
-	}
-
-	// a hack for snap's activation restriction
-	const auto weak = base::make_weak(this);
-	StartServiceAsync(_proxy.get_connection(), crl::guard(weak, [=] {
-		const auto iconName = _imageKey.empty()
-			|| !_hints.lookup_value(_imageKey)
-				? base::IconName().toStdString()
-				: std::string();
-
-		auto actions = _actions
-			| ranges::views::transform(&std::string::c_str)
-			| ranges::to_vector;
-		actions.push_back(nullptr);
-
-		const auto callbackWrap = gi::unwrap(
-			Gio::AsyncReadyCallback(
-				crl::guard(weak, [=](GObject::Object, Gio::AsyncResult res) {
-					Core::Sandbox::Instance().customEnterFromEventLoop([&] {
-						const auto result = _interface.call_notify_finish(
-							res);
-
-						if (!result) {
-							Gio::DBusErrorNS_::strip_remote_error(
-								result.error());
-							LOG(("Native Notification Error: %1").arg(
-								result.error().message_().c_str()));
-							_manager->clearNotification(_id);
-							return;
-						}
-
-						_notificationId = std::get<1>(*result);
-					});
-				})),
-			gi::scope_async);
-
-		xdg_notifications_notifications_call_notify(
-			_interface.gobj_(),
-			AppName.data(),
-			0,
-			iconName.c_str(),
-			_title.c_str(),
-			_body.c_str(),
-			actions.data(),
-			_hints.end().gobj_(),
-			-1,
-			nullptr,
-			&callbackWrap->wrapper,
-			callbackWrap);
-	}));
-}
-
-void NotificationData::close() {
-	if (_application) {
-		_application.withdraw_notification(_guid);
-	} else {
-		_interface.call_close_notification(_notificationId, nullptr);
-	}
-	_manager->clearNotification(_id);
-}
-
-void NotificationData::setImage(QImage image) {
-	if (_notification) {
-		const auto imageData = std::make_shared<QByteArray>();
-		QBuffer buffer(imageData.get());
-		buffer.open(QIODevice::WriteOnly);
-		image.save(&buffer, "PNG");
-
-		_notification.set_icon(
-			Gio::BytesIcon::new_(
-				GLib::Bytes::new_with_free_func(
-					reinterpret_cast<const uchar*>(imageData->constData()),
-					imageData->size(),
-					[imageData] {})));
-
-		return;
-	}
-
-	if (_imageKey.empty()) {
-		return;
-	}
-
-	if (image.hasAlphaChannel()) {
-		image.convertTo(QImage::Format_RGBA8888);
-	} else {
-		image.convertTo(QImage::Format_RGB888);
-	}
-
-	_hints.insert_value(_imageKey, GLib::Variant::new_tuple({
-		GLib::Variant::new_int32(image.width()),
-		GLib::Variant::new_int32(image.height()),
-		GLib::Variant::new_int32(image.bytesPerLine()),
-		GLib::Variant::new_boolean(image.hasAlphaChannel()),
-		GLib::Variant::new_int32(8),
-		GLib::Variant::new_int32(image.hasAlphaChannel() ? 4 : 3),
-		GLib::Variant::new_from_data(
-			GLib::VariantType::new_("ay"),
-			reinterpret_cast<const uchar*>(image.constBits()),
-			image.sizeInBytes(),
-			true,
-			[image] {}),
-	}));
-}
-
 } // namespace
 
-class Manager::Private : public base::has_weak_ptr {
+class Manager::Private {
 public:
 	explicit Private(not_null<Manager*> manager);
 
@@ -574,14 +161,23 @@ public:
 	~Private();
 
 private:
+	struct NotificationData : public base::has_weak_ptr {
+		uint id = 0;
+	};
+	using Notification = std::unique_ptr<NotificationData>;
+
 	const not_null<Manager*> _manager;
 
 	base::flat_map<
 		ContextId,
-		base::flat_map<MsgId, Notification>> _notifications;
+		base::flat_map<MsgId,
+			std::variant<Notification, std::string>>> _notifications;
 
+	Gio::Application _application;
 	XdgNotifications::NotificationsProxy _proxy;
 	XdgNotifications::Notifications _interface;
+	Media::Audio::LocalDiskCache _sounds;
+	rpl::lifetime _lifetime;
 
 };
 
@@ -728,7 +324,11 @@ void Create(Window::Notifications::System *system) {
 }
 
 Manager::Private::Private(not_null<Manager*> manager)
-: _manager(manager) {
+: _manager(manager)
+, _application(UseGNotification()
+		? Gio::Application::get_default()
+		: nullptr)
+, _sounds(cWorkingDir() + u"tdata/audio_cache"_q) {
 	const auto &serverInformation = CurrentServerInformation;
 
 	if (!serverInformation.name.empty()) {
@@ -760,11 +360,164 @@ Manager::Private::Private(not_null<Manager*> manager)
 					return a + (a.empty() ? "" : ", ") + b;
 				}).c_str()));
 	}
+
+	if (auto actionMap = Gio::ActionMap(_application)) {
+		const auto dictToNotificationId = [](GLib::VariantDict dict) {
+			return NotificationId{
+				.contextId = ContextId{
+					.sessionId = dict.lookup_value("session").get_uint64(),
+					.peerId = PeerId(dict.lookup_value("peer").get_uint64()),
+					.topicRootId = dict.lookup_value("topic").get_int64(),
+				},
+				.msgId = dict.lookup_value("msgid").get_int64(),
+			};
+		};
+
+		auto activate = gi::wrap(
+			G_SIMPLE_ACTION(
+				actionMap.lookup_action("notification-activate").gobj_()),
+			gi::transfer_none);
+
+		const auto activateSig = activate.signal_activate().connect([=](
+				Gio::SimpleAction,
+				GLib::Variant parameter) {
+			Core::Sandbox::Instance().customEnterFromEventLoop([&] {
+				_manager->notificationActivated(
+					dictToNotificationId(GLib::VariantDict::new_(parameter)));
+			});
+		});
+
+		_lifetime.add([=]() mutable {
+			activate.disconnect(activateSig);
+		});
+
+		auto markAsRead = gi::wrap(
+			G_SIMPLE_ACTION(
+				actionMap.lookup_action("notification-mark-as-read").gobj_()),
+			gi::transfer_none);
+
+		const auto markAsReadSig = markAsRead.signal_activate().connect([=](
+				Gio::SimpleAction,
+				GLib::Variant parameter) {
+			Core::Sandbox::Instance().customEnterFromEventLoop([&] {
+				_manager->notificationReplied(
+					dictToNotificationId(GLib::VariantDict::new_(parameter)),
+					{});
+			});
+		});
+
+		_lifetime.add([=]() mutable {
+			markAsRead.disconnect(markAsReadSig);
+		});
+	}
 }
 
 void Manager::Private::init(XdgNotifications::NotificationsProxy proxy) {
 	_proxy = proxy;
 	_interface = proxy;
+
+	if (_application || !_interface) {
+		return;
+	}
+
+	const auto actionInvoked = _interface.signal_action_invoked().connect([=](
+			XdgNotifications::Notifications,
+			uint id,
+			std::string actionName) {
+		Core::Sandbox::Instance().customEnterFromEventLoop([&] {
+			for (const auto &[key, notifications] : _notifications) {
+				for (const auto &[msgId, notification] : notifications) {
+					if (id == v::get<Notification>(notification)->id) {
+						if (actionName == "default") {
+							_manager->notificationActivated({ key, msgId });
+						} else if (actionName == "mail-mark-read") {
+							_manager->notificationReplied({ key, msgId }, {});
+						}
+						return;
+					}
+				}
+			}
+		});
+	});
+
+	_lifetime.add([=] {
+		_interface.disconnect(actionInvoked);
+	});
+
+	const auto replied = _interface.signal_notification_replied().connect([=](
+			XdgNotifications::Notifications,
+			uint id,
+			std::string text) {
+		Core::Sandbox::Instance().customEnterFromEventLoop([&] {
+			for (const auto &[key, notifications] : _notifications) {
+				for (const auto &[msgId, notification] : notifications) {
+					if (id == v::get<Notification>(notification)->id) {
+						_manager->notificationReplied(
+							{ key, msgId },
+							{ QString::fromStdString(text), {} });
+						return;
+					}
+				}
+			}
+		});
+	});
+
+	_lifetime.add([=] {
+		_interface.disconnect(replied);
+	});
+
+	const auto tokenSignal = _interface.signal_activation_token().connect([=](
+			XdgNotifications::Notifications,
+			uint id,
+			std::string token) {
+		for (const auto &[key, notifications] : _notifications) {
+			for (const auto &[msgId, notification] : notifications) {
+				if (id == v::get<Notification>(notification)->id) {
+					GLib::setenv("XDG_ACTIVATION_TOKEN", token, true);
+					return;
+				}
+			}
+		}
+	});
+
+	_lifetime.add([=] {
+		_interface.disconnect(tokenSignal);
+	});
+
+	const auto closed = _interface.signal_notification_closed().connect([=](
+			XdgNotifications::Notifications,
+			uint id,
+			uint reason) {
+		Core::Sandbox::Instance().customEnterFromEventLoop([&] {
+			for (const auto &[key, notifications] : _notifications) {
+				for (const auto &[msgId, notification] : notifications) {
+					/*
+					* From: https://specifications.freedesktop.org/notification-spec/latest/ar01s09.html
+					* The reason the notification was closed
+					* 1 - The notification expired.
+					* 2 - The notification was dismissed by the user.
+					* 3 - The notification was closed by a call to CloseNotification.
+					* 4 - Undefined/reserved reasons.
+					*
+					* If the notification was dismissed by the user (reason == 2), the notification is not kept in notification history.
+					* We do not need to send a "CloseNotification" call later to clear it from history.
+					* Therefore we can drop the notification reference now.
+					* In all other cases we keep the notification reference so that we may clear the notification later from history,
+					* if the message for that notification is read (e.g. chat is opened or read from another device).
+					*/
+					if (id == v::get<Notification>(notification)->id
+							&& reason == 2) {
+						clearNotification({ key, msgId });
+						return;
+					}
+				}
+			}
+		});
+	});
+
+	_lifetime.add([=] {
+		_interface.disconnect(closed);
+	});
 }
 
 void Manager::Private::showNotification(
@@ -781,18 +534,175 @@ void Manager::Private::showNotification(
 		.contextId = key,
 		.msgId = info.itemId,
 	};
-	auto notification = std::make_unique<NotificationData>(
-		_manager,
-		_proxy,
-		notificationId);
-	const auto inited = notification->init(info);
-	if (!inited) {
-		return;
-	}
+	auto notification = _application
+		? std::variant<Notification, Gio::Notification>(
+			Gio::Notification::new_(
+				info.subtitle.isEmpty()
+					? info.title.toStdString()
+					: info.subtitle.toStdString()
+						+ " (" + info.title.toStdString() + ')'))
+		: std::variant<Notification, Gio::Notification>(Notification{});
 
+	std::vector<gi::cstring> actions;
+	auto hints = GLib::VariantDict::new_();
+	v::match(notification, [&](Gio::Notification &notification) {
+		notification.set_body(info.message.toStdString());
+
+		notification.set_icon(
+			Gio::ThemedIcon::new_(base::IconName().toStdString()));
+
+		// for chat messages, according to
+		// https://docs.gtk.org/gio/enum.NotificationPriority.html
+		notification.set_priority(Gio::NotificationPriority::HIGH_);
+
+		// glib 2.70+, we keep glib 2.56+ compatibility
+		static const auto set_category = [] {
+			// reset dlerror after dlsym call
+			const auto guard = gsl::finally([] { dlerror(); });
+			return reinterpret_cast<void(*)(GNotification*, const gchar*)>(
+				dlsym(RTLD_DEFAULT, "g_notification_set_category"));
+		}();
+
+		if (set_category) {
+			set_category(notification.gobj_(), "im.received");
+		}
+
+		const auto notificationVariant = GLib::Variant::new_array({
+			GLib::Variant::new_dict_entry(
+				GLib::Variant::new_string("session"),
+				GLib::Variant::new_variant(
+					GLib::Variant::new_uint64(peer->session().uniqueId()))),
+			GLib::Variant::new_dict_entry(
+				GLib::Variant::new_string("peer"),
+				GLib::Variant::new_variant(
+					GLib::Variant::new_uint64(peer->id.value))),
+			GLib::Variant::new_dict_entry(
+				GLib::Variant::new_string("peer"),
+				GLib::Variant::new_variant(
+					GLib::Variant::new_uint64(peer->id.value))),
+			GLib::Variant::new_dict_entry(
+				GLib::Variant::new_string("topic"),
+				GLib::Variant::new_variant(
+					GLib::Variant::new_int64(info.topicRootId.bare))),
+			GLib::Variant::new_dict_entry(
+				GLib::Variant::new_string("msgid"),
+				GLib::Variant::new_variant(
+					GLib::Variant::new_int64(info.itemId.bare))),
+		});
+
+		notification.set_default_action_and_target(
+			"app.notification-activate",
+			notificationVariant);
+
+		if (!options.hideMarkAsRead) {
+			notification.add_button_with_target(
+				tr::lng_context_mark_read(tr::now).toStdString(),
+				"app.notification-mark-as-read",
+				notificationVariant);
+		}
+	}, [&](const Notification &notification) {
+		if (HasCapability("actions")) {
+			actions.push_back("default");
+			actions.push_back(tr::lng_open_link(tr::now).toStdString());
+
+			if (!options.hideMarkAsRead) {
+				// icon name according to https://specifications.freedesktop.org/icon-naming-spec/icon-naming-spec-latest.html
+				actions.push_back("mail-mark-read");
+				actions.push_back(
+					tr::lng_context_mark_read(tr::now).toStdString());
+			}
+
+			if (HasCapability("inline-reply")
+					&& !options.hideReplyButton) {
+				actions.push_back("inline-reply");
+				actions.push_back(
+					tr::lng_notification_reply(tr::now).toStdString());
+			}
+
+			actions.push_back({});
+		}
+
+		if (HasCapability("action-icons")) {
+			hints.insert_value(
+				"action-icons",
+				GLib::Variant::new_boolean(true));
+		}
+
+		if (HasCapability("sound")) {
+			const auto sound = info.sound
+				? info.sound()
+				: Media::Audio::LocalSound();
+
+			const auto path = sound
+				? _sounds.path(sound).toStdString()
+				: std::string();
+
+			if (!path.empty()) {
+				hints.insert_value(
+					"sound-file",
+					GLib::Variant::new_string(path));
+			} else {
+				hints.insert_value(
+					"suppress-sound",
+					GLib::Variant::new_boolean(true));
+			}
+		}
+
+		if (HasCapability("x-canonical-append")) {
+			hints.insert_value(
+				"x-canonical-append",
+				GLib::Variant::new_string("true"));
+		}
+
+		hints.insert_value(
+			"category",
+			GLib::Variant::new_string("im.received"));
+
+		hints.insert_value("desktop-entry", GLib::Variant::new_string(
+			QGuiApplication::desktopFileName().toStdString()));
+	});
+
+	const auto imageKey = GetImageKey();
 	if (!options.hideNameAndPhoto) {
-		notification->setImage(
-			Window::Notifications::GenerateUserpic(peer, userpicView));
+		v::match(notification, [&](Gio::Notification &notification) {
+			QByteArray imageData;
+			QBuffer buffer(&imageData);
+			buffer.open(QIODevice::WriteOnly);
+			Window::Notifications::GenerateUserpic(peer, userpicView).save(
+				&buffer,
+				"PNG");
+
+			notification.set_icon(
+				Gio::BytesIcon::new_(
+					GLib::Bytes::new_with_free_func(
+						reinterpret_cast<const uchar*>(imageData.constData()),
+						imageData.size(),
+						[imageData] {})));
+		}, [&](const Notification &notification) {
+			if (imageKey.empty()) {
+				return;
+			}
+
+			const auto image = Window::Notifications::GenerateUserpic(
+				peer,
+				userpicView
+			).convertToFormat(QImage::Format_RGBA8888);
+
+			hints.insert_value(imageKey, GLib::Variant::new_tuple({
+				GLib::Variant::new_int32(image.width()),
+				GLib::Variant::new_int32(image.height()),
+				GLib::Variant::new_int32(image.bytesPerLine()),
+				GLib::Variant::new_boolean(true),
+				GLib::Variant::new_int32(8),
+				GLib::Variant::new_int32(4),
+				GLib::Variant::new_from_data(
+					GLib::VariantType::new_("ay"),
+					reinterpret_cast<const uchar*>(image.constBits()),
+					image.sizeInBytes(),
+					true,
+					[image] {}),
+			}));
+		});
 	}
 
 	auto i = _notifications.find(key);
@@ -801,25 +711,111 @@ void Manager::Private::showNotification(
 		if (j != end(i->second)) {
 			auto oldNotification = std::move(j->second);
 			i->second.erase(j);
-			oldNotification->close();
+			v::match(oldNotification, [&](
+					const std::string &oldNotification) {
+				_application.withdraw_notification(oldNotification);
+			}, [&](const Notification &oldNotification) {
+				_interface.call_close_notification(
+					oldNotification->id,
+					nullptr);
+			});
+			clearNotification(notificationId);
 			i = _notifications.find(key);
 		}
 	}
 	if (i == end(_notifications)) {
-		i = _notifications.emplace(
-			key,
-			base::flat_map<MsgId, Notification>()).first;
+		i = _notifications.emplace(key).first;
 	}
-	const auto j = i->second.emplace(
-		info.itemId,
-		std::move(notification)).first;
-	j->second->show();
+	v::match(notification, [&](Gio::Notification &notification) {
+		const auto j = i->second.emplace(
+			info.itemId,
+			Gio::dbus_generate_guid()).first;
+		_application.send_notification(
+			v::get<std::string>(j->second),
+			notification);
+	}, [&](Notification &notification) {
+		const auto j = i->second.emplace(
+			info.itemId,
+			std::move(notification)).first;
+
+		const auto weak = base::make_weak(
+			v::get<Notification>(j->second).get());
+
+		// work around snap's activation restriction
+		StartServiceAsync(
+			_proxy.get_connection(),
+			crl::guard(weak, [=]() mutable {
+				const auto hasBodyMarkup = HasCapability("body-markup");
+
+				const auto callbackWrap = gi::unwrap(
+					Gio::AsyncReadyCallback(
+						crl::guard(weak, [=](
+								GObject::Object,
+								Gio::AsyncResult res) {
+							auto &sandbox = Core::Sandbox::Instance();
+							sandbox.customEnterFromEventLoop([&] {
+								const auto result
+									= _interface.call_notify_finish(res);
+
+								if (!result) {
+									Gio::DBusErrorNS_::strip_remote_error(
+										result.error());
+									LOG(("Native Notification Error: %1").arg(
+										result.error().message_().c_str()));
+									clearNotification(notificationId);
+									return;
+								}
+
+								weak->id = std::get<1>(*result);
+							});
+						})),
+					gi::scope_async);
+
+				xdg_notifications_notifications_call_notify(
+					_interface.gobj_(),
+					AppName.data(),
+					0,
+					(imageKey.empty() || !hints.lookup_value(imageKey)
+							? base::IconName().toStdString()
+							: std::string()).c_str(),
+					(hasBodyMarkup || info.subtitle.isEmpty()
+						? info.title.toStdString()
+						: info.subtitle.toStdString()
+							+ " (" + info.title.toStdString() + ')').c_str(),
+					(hasBodyMarkup
+						? info.subtitle.isEmpty()
+							? info.message.toHtmlEscaped().toStdString()
+							: u"<b>%1</b>\n%2"_q.arg(
+								info.subtitle.toHtmlEscaped(),
+								info.message.toHtmlEscaped()).toStdString()
+						: info.message.toStdString()).c_str(),
+					!actions.empty()
+						? (actions
+							| ranges::views::transform(&gi::cstring::c_str)
+							| ranges::to_vector).data()
+						: nullptr,
+					hints.end().gobj_(),
+					-1,
+					nullptr,
+					&callbackWrap->wrapper,
+					callbackWrap);
+			}));
+	});
 }
 
 void Manager::Private::clearAll() {
 	for (const auto &[key, notifications] : base::take(_notifications)) {
 		for (const auto &[msgId, notification] : notifications) {
-			notification->close();
+			const auto notificationId = NotificationId{
+				.contextId = key,
+				.msgId = msgId,
+			};
+			v::match(notification, [&](const std::string &notification) {
+				_application.withdraw_notification(notification);
+			}, [&](const Notification &notification) {
+				_interface.call_close_notification(notification->id, nullptr);
+			});
+			clearNotification(notificationId);
 		}
 	}
 }
@@ -829,6 +825,10 @@ void Manager::Private::clearFromItem(not_null<HistoryItem*> item) {
 		.sessionId = item->history()->session().uniqueId(),
 		.peerId = item->history()->peer->id,
 		.topicRootId = item->topicRootId(),
+	};
+	const auto notificationId = NotificationId{
+		.contextId = key,
+		.msgId = item->id,
 	};
 	const auto i = _notifications.find(key);
 	if (i == _notifications.cend()) {
@@ -843,7 +843,12 @@ void Manager::Private::clearFromItem(not_null<HistoryItem*> item) {
 	if (i->second.empty()) {
 		_notifications.erase(i);
 	}
-	taken->close();
+	v::match(taken, [&](const std::string &taken) {
+		_application.withdraw_notification(taken);
+	}, [&](const Notification &taken) {
+		_interface.call_close_notification(taken->id, nullptr);
+	});
+	clearNotification(notificationId);
 }
 
 void Manager::Private::clearFromTopic(not_null<Data::ForumTopic*> topic) {
@@ -857,7 +862,16 @@ void Manager::Private::clearFromTopic(not_null<Data::ForumTopic*> topic) {
 		_notifications.erase(i);
 
 		for (const auto &[msgId, notification] : temp) {
-			notification->close();
+			const auto notificationId = NotificationId{
+				.contextId = key,
+				.msgId = msgId,
+			};
+			v::match(notification, [&](const std::string &notification) {
+				_application.withdraw_notification(notification);
+			}, [&](const Notification &notification) {
+				_interface.call_close_notification(notification->id, nullptr);
+			});
+			clearNotification(notificationId);
 		}
 	}
 }
@@ -865,10 +879,11 @@ void Manager::Private::clearFromTopic(not_null<Data::ForumTopic*> topic) {
 void Manager::Private::clearFromHistory(not_null<History*> history) {
 	const auto sessionId = history->session().uniqueId();
 	const auto peerId = history->peer->id;
-	auto i = _notifications.lower_bound(ContextId{
+	const auto key = ContextId{
 		.sessionId = sessionId,
 		.peerId = peerId,
-	});
+	};
+	auto i = _notifications.lower_bound(key);
 	while (i != _notifications.cend()
 		&& i->first.sessionId == sessionId
 		&& i->first.peerId == peerId) {
@@ -876,22 +891,41 @@ void Manager::Private::clearFromHistory(not_null<History*> history) {
 		i = _notifications.erase(i);
 
 		for (const auto &[msgId, notification] : temp) {
-			notification->close();
+			const auto notificationId = NotificationId{
+				.contextId = key,
+				.msgId = msgId,
+			};
+			v::match(notification, [&](const std::string &notification) {
+				_application.withdraw_notification(notification);
+			}, [&](const Notification &notification) {
+				_interface.call_close_notification(notification->id, nullptr);
+			});
+			clearNotification(notificationId);
 		}
 	}
 }
 
 void Manager::Private::clearFromSession(not_null<Main::Session*> session) {
 	const auto sessionId = session->uniqueId();
-	auto i = _notifications.lower_bound(ContextId{
+	const auto key = ContextId{
 		.sessionId = sessionId,
-	});
+	};
+	auto i = _notifications.lower_bound(key);
 	while (i != _notifications.cend() && i->first.sessionId == sessionId) {
 		const auto temp = base::take(i->second);
 		i = _notifications.erase(i);
 
 		for (const auto &[msgId, notification] : temp) {
-			notification->close();
+			const auto notificationId = NotificationId{
+				.contextId = key,
+				.msgId = msgId,
+			};
+			v::match(notification, [&](const std::string &notification) {
+				_application.withdraw_notification(notification);
+			}, [&](const Notification &notification) {
+				_interface.call_close_notification(notification->id, nullptr);
+			});
+			clearNotification(notificationId);
 		}
 	}
 }
@@ -918,10 +952,6 @@ Manager::Private::~Private() {
 Manager::Manager(not_null<Window::Notifications::System*> system)
 : NativeManager(system)
 , _private(std::make_unique<Private>(this)) {
-}
-
-void Manager::clearNotification(NotificationId id) {
-	_private->clearNotification(id);
 }
 
 Manager::~Manager() = default;

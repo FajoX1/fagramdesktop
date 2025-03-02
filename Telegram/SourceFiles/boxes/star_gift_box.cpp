@@ -99,8 +99,8 @@ namespace Ui {
 namespace {
 
 constexpr auto kPriceTabAll = 0;
-constexpr auto kPriceTabLimited = -1;
-constexpr auto kPriceTabInStock = -2;
+constexpr auto kPriceTabLimited = -2;
+constexpr auto kPriceTabInStock = -1;
 constexpr auto kGiftMessageLimit = 255;
 constexpr auto kSentToastDuration = 3 * crl::time(1000);
 constexpr auto kSwitchUpgradeCoverInterval = 3 * crl::time(1000);
@@ -2371,7 +2371,7 @@ void ShowUniqueGiftWearBox(
 				object_ptr<Ui::FlatLabel>(
 					raw,
 					std::move(text),
-					st.infoAbout ? *st.infoAbout : st::boxDividerLabel),
+					st.infoAbout ? *st.infoAbout : st::upgradeGiftSubtext),
 				st::settingsPremiumRowAboutPadding);
 			object_ptr<Info::Profile::FloatingIcon>(
 				raw,
@@ -2603,7 +2603,7 @@ void UpgradeBox(
 			object_ptr<Ui::FlatLabel>(
 				raw,
 				std::move(text),
-				st::boxDividerLabel),
+				st::upgradeGiftSubtext),
 			st::settingsPremiumRowAboutPadding);
 		object_ptr<Info::Profile::FloatingIcon>(
 			raw,
