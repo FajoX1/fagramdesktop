@@ -136,6 +136,7 @@ bool HandleQuit(
 	return true;
 }
 
+// thx ayugram
 bool ResolveUser(
 	Window::SessionController *controller,
 	const Match &match,
@@ -166,7 +167,7 @@ bool ResolveUser(
 				   }
 
 				   Core::App().hideMediaView();
-				   Ui::show(Ui::MakeInformBox(tr::ayu_UserNotFoundMessage()));
+				   controller->showToast(FAlang::Translate(QString("fa_not_found")), 500);
 			   });
 
 	return true;
