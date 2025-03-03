@@ -149,11 +149,11 @@ namespace Settings {
 	    AddButtonWithLabel(
 			container,
 			FAlang::RplTranslate(QString("fa_channel")),
-			rpl::single(QString("@FAgramNews")),
+			rpl::single(QString("@FAgramClient")),
 			st::settingsButton,
 			{ &st::menuIconChannel }
 		)->setClickedCallback([=] {
-			Core::App().openLocalUrl("tg://resolve?domain=FAgramNews", {});
+			Core::App().openLocalUrl("tg://resolve?domain=FAgramClient", {});
 		});
 
     	AddButtonWithLabel(

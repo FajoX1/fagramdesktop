@@ -1,7 +1,8 @@
 <div align="center">
+
 <img alt="Telegram" width="150x" src="https://github.com/FajoX1/fagramdesktop/blob/dev/Telegram/Resources/art/icon512@2x.png?raw=true">
 
-<h1><a href='https://t.me/FAgramNews'>FAgram Desktop</a></h1>
+<h1><a href='https://t.me/FAgramClient'>FAgram Desktop</a></h1>
 
 #### This is the complete source code of FAgram Desktop.
 
@@ -9,7 +10,7 @@
 
 > ***✏️ Note that source code is published under GPLv3 with OpenSSL exception, the license is available [here][license].***
 
-<a href="https://t.me/FAgramNews"><img alt="Telegram" src="https://img.shields.io/badge/Telegram_Channel-0a0a0a?style=for-the-badge&logo=telegram"></a>
+<a href="https://t.me/FAgramClient"><img alt="Telegram" src="https://img.shields.io/badge/Telegram_Channel-0a0a0a?style=for-the-badge&logo=telegram"></a>
 <a href="https://t.me/FAgram_Group"><img alt="Telegram" src="https://img.shields.io/badge/Telegram_Chat-0a0a0a?style=for-the-badge&logo=telegram"></a>
 
 ## <h2><img src="https://github.com/hikariatama/assets/raw/master/680-it-developer-flat.webp" height="50" align="middle"> Supported systems</h2>
@@ -73,8 +74,8 @@ The latest version is available for
 * [hikariatama (for emojis in readme)](https://github.com/hikariatama)
 
 [//]: # (LINKS)
-[fagram]: https://t.me/FAgramNews
-[fagram_desktop]: https://t.me/FAgramNews
+[fagram]: https://t.me/FAgramClient
+[fagram_desktop]: https://t.me/FAgramClient
 [telegram_desktop]: https://github.com/fajox1/fagramdesktop
 [telegram_api]: https://core.telegram.org
 [telegram_proto]: https://core.telegram.org/mtproto

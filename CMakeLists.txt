@@ -33,7 +33,7 @@ project(Telegram
     LANGUAGES ${project_langs}
     VERSION ${desktop_app_version_cmake}
     DESCRIPTION "FAgram Desktop"
-    HOMEPAGE_URL "https://t.me/FAgramNews"
+    HOMEPAGE_URL "https://t.me/FAgramClient"
 )
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT Telegram)
 
