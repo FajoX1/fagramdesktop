@@ -13,6 +13,12 @@
 <a href="https://t.me/FAgramClient"><img alt="Telegram" src="https://img.shields.io/badge/Telegram_Channel-0a0a0a?style=for-the-badge&logo=telegram"></a>
 <a href="https://t.me/FAgram_Group"><img alt="Telegram" src="https://img.shields.io/badge/Telegram_Chat-0a0a0a?style=for-the-badge&logo=telegram"></a>
 
+<div align="center">
+
+![[Preview of FAgram Desktop]][preview_image]
+
+</div>
+
 ## <h2><img src="https://github.com/hikariatama/assets/raw/master/680-it-developer-flat.webp" height="50" align="middle"> Supported systems</h2>
 
 The latest version is available for
@@ -86,4 +92,4 @@ The latest version is available for
 [win64_build]: docs/building-win64.md
 [mac_build]: docs/building-mac.md
 [linux_build]: docs/building-linux.md
-[preview_image]: https://raw.githubusercontent.com/telegramdesktop/tdesktop/dev/docs/assets/preview.png "Preview of FAgram Deskop"
+[preview_image]: https://raw.githubusercontent.com/fajox1/fagramdesktop/dev/docs/assets/preview.png "Preview of FAgram Deskop"
