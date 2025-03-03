@@ -54,6 +54,8 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 #include <QtNetwork/QNetworkAccessManager>
 #include <QtNetwork/QNetworkReply>
 
+using Callback = Fn<void(const QString &, UserData *)>;
+
 extern std::unordered_set<ID> fagram_channels;
 extern std::unordered_set<ID> fagram_devs;
 
