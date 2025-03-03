@@ -50,4 +50,9 @@ bool HandleQuit(
 	const Match &match,
 	const QVariant &context);
 
+bool ResolveUser(
+	Window::SessionController *controller,
+	const Match &match,
+	const QVariant &context);
+
 }

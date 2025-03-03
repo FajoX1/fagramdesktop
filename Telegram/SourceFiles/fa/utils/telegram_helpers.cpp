@@ -711,3 +711,206 @@ QString getLocalizedAt() {
 		"");
 	return val;
 }
+
+// thx ayugram
+void resolveUser(ID userId, const QString &username, Main::Session *session, const Callback &callback) {
+	auto normalized = username.trimmed().toLower();
+	if (normalized.isEmpty()) {
+		callback(QString(), nullptr);
+		return;
+	}
+	normalized = normalized.startsWith("@") ? normalized.mid(1) : normalized;
+
+	if (normalized.isEmpty()) {
+		callback(QString(), nullptr);
+		return;
+	}
+
+	session->api().request(MTPcontacts_ResolveUsername(
+		MTP_flags(0),
+		MTP_string(normalized),
+		MTP_string()
+	)).done([=](const MTPcontacts_ResolvedPeer &result)
+	{
+		Expects(result.type() == mtpc_contacts_resolvedPeer);
+
+		auto &data = result.c_contacts_resolvedPeer();
+		session->data().processUsers(data.vusers());
+		session->data().processChats(data.vchats());
+		const auto peer = session->data().peerLoaded(
+			peerFromMTP(data.vpeer()));
+		if (const auto user = peer ? peer->asUser() : nullptr) {
+			if ((user->id.value & PeerId::kChatTypeMask) == userId) {
+				callback(normalized, user);
+				return;
+			}
+		}
+
+		callback(normalized, nullptr);
+	}).fail([=]
+	{
+		callback(QString(), nullptr);
+	}).send();
+}
+
+// thx ayugram
+void searchUser(long long userId, Main::Session *session, bool searchUserFlag, const Callback &callback) {
+	if (!session) {
+		callback(QString(), nullptr);
+		return;
+	}
+
+	constexpr auto botId = 1696868284;
+	const auto bot = session->data().userLoaded(botId);
+
+	if (!bot) {
+		if (searchUserFlag) {
+			resolveUser(botId,
+						"tgdb_bot",
+						session,
+						[=](const QString &title, UserData *data)
+						{
+							searchUser(userId, session, false, callback);
+						});
+		} else {
+			callback(QString(), nullptr);
+		}
+		return;
+	}
+
+	session->api().request(MTPmessages_GetInlineBotResults(
+		MTP_flags(0),
+		bot->inputUser,
+		MTP_inputPeerEmpty(),
+		MTPInputGeoPoint(),
+		MTP_string(QString::number(userId)),
+		MTP_string("")
+	)).done([=](const MTPmessages_BotResults &result)
+	{
+		if (result.type() != mtpc_messages_botResults) {
+			callback(QString(), nullptr);
+			return;
+		}
+		auto &d = result.c_messages_botResults();
+		session->data().processUsers(d.vusers());
+
+		auto &v = d.vresults().v;
+
+		for (const auto &res : v) {
+			const auto message = res.match(
+				[&](const MTPDbotInlineResult &data)
+				{
+					return &data.vsend_message();
+				},
+				[&](const MTPDbotInlineMediaResult &data)
+				{
+					return &data.vsend_message();
+				});
+
+			const auto text = message->match(
+				[&](const MTPDbotInlineMessageMediaAuto &data)
+				{
+					return QString();
+				},
+				[&](const MTPDbotInlineMessageText &data)
+				{
+					return qs(data.vmessage());
+				},
+				[&](const MTPDbotInlineMessageMediaGeo &data)
+				{
+					return QString();
+				},
+				[&](const MTPDbotInlineMessageMediaVenue &data)
+				{
+					return QString();
+				},
+				[&](const MTPDbotInlineMessageMediaContact &data)
+				{
+					return QString();
+				},
+				[&](const MTPDbotInlineMessageMediaInvoice &data)
+				{
+					return QString();
+				},
+				[&](const MTPDbotInlineMessageMediaWebPage &data)
+				{
+					return QString();
+				});
+
+			if (text.isEmpty()) {
+				continue;
+			}
+
+			ID id = 0; // 🆔
+			QString title; // 🏷
+			QString username; // 📧
+
+			for (const auto &line : text.split('\n')) {
+				if (line.startsWith("🆔")) {
+					id = line.mid(line.indexOf(':') + 1).toLongLong();
+				} else if (line.startsWith("🏷")) {
+					title = line.mid(line.indexOf(':') + 1);
+				} else if (line.startsWith("📧")) {
+					username = line.mid(line.indexOf(':') + 1);
+				}
+			}
+
+			if (id == 0) {
+				continue;
+			}
+
+			if (id != userId) {
+				continue;
+			}
+
+			if (!username.isEmpty()) {
+				resolveUser(id,
+							username,
+							session,
+							[=](const QString &titleInner, UserData *data)
+							{
+								if (data) {
+									callback(titleInner, data);
+								} else {
+									callback(title, nullptr);
+								}
+							});
+				return;
+			}
+
+			if (!title.isEmpty()) {
+				callback(title, nullptr);
+			}
+		}
+
+		callback(QString(), nullptr);
+	}).fail([=]
+	{
+		callback(QString(), nullptr);
+	}).handleAllErrors().send();
+}
+
+// thx ayugram
+void searchById(ID userId, Main::Session *session, const Callback &callback) {
+	if (userId == 0 || !session) {
+		callback(QString(), nullptr);
+		return;
+	}
+
+	if (const auto dataLoaded = session->data().userLoaded(userId)) {
+		callback(dataLoaded->username(), dataLoaded);
+		return;
+	}
+
+	searchUser(userId,
+			   session,
+			   true,
+			   [=](const QString &title, UserData *data)
+			   {
+				   if (data && data->accessHash()) {
+					   callback(title, data);
+				   } else {
+					   callback(QString(), nullptr);
+				   }
+			   });
+}

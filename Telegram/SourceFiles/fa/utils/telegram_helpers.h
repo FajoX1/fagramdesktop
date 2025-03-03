@@ -83,3 +83,8 @@ void MessageDetails(not_null<Ui::PopupMenu*> menu, HistoryItem *item);
 ID getUserIdFromPackId(uint64 id);
 QString formatDateTime(const QDateTime &date);
 QString getLocalizedAt();
+
+void resolveUser(ID userId, const QString &username, Main::Session *session, const Callback &callback);
+
+void searchUser(long long userId, Main::Session *session, bool searchUserFlag, const Callback &callback);
+void searchById(ID userId, Main::Session *session, const Callback &callback);

@@ -135,4 +135,41 @@ bool HandleQuit(
 
 	return true;
 }
+
+bool ResolveUser(
+	Window::SessionController *controller,
+	const Match &match,
+	const QVariant &context) {
+	if (!controller) {
+		return false;
+	}
+	const auto params = url_parse_params(
+		match->captured(1),
+		qthelp::UrlParamNameTransform::ToLower);
+	const auto userId = params.value(qsl("id")).toLongLong();
+	if (!userId) {
+		return false;
+	}
+	const auto peer = controller->session().data().peerLoaded(static_cast<PeerId>(userId));
+	if (peer != nullptr) {
+		controller->showPeerInfo(peer);
+		return true;
+	}
+
+	searchById(userId,
+			   &controller->session(),
+			   [=](const QString &title, UserData *data)
+			   {
+				   if (data) {
+					   controller->showPeerInfo(data);
+					   return;
+				   }
+
+				   Core::App().hideMediaView();
+				   Ui::show(Ui::MakeInformBox(tr::ayu_UserNotFoundMessage()));
+			   });
+
+	return true;
+}
+
 }

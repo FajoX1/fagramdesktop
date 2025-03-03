@@ -1466,6 +1466,10 @@ const std::vector<LocalUrlHandler> &LocalUrlHandlers() {
 			ResolveUniqueGift
 		},
 		{
+			u"^user/?(.+)?(#|$)"_q,
+			FAUrlHandlers::ResolveUser
+		},
+		{
 			u"^fa/clean_debug_logs/?(.+)?(#|$)"_q,
 			FAUrlHandlers::HandleCleanDebugLogs
 		},
