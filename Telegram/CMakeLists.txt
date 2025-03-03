@@ -745,6 +745,8 @@ PRIVATE
     fa/ui/previews.cpp
     fa/ui/previews.h
     fa/fa_version.h
+    fa/ui/menu_item_subtext.cpp
+    fa/ui/menu_item_subtext.h
     history/admin_log/history_admin_log_filter.cpp
     history/admin_log/history_admin_log_filter.h
     history/admin_log/history_admin_log_inner.cpp
