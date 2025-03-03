@@ -84,5 +84,5 @@ ID getUserIdFromPackId(uint64 id);
 QString formatDateTime(const QDateTime &date);
 QString getLocalizedAt();
 
-void searchUser(long long userId, Main::Session *session, bool searchUserFlag, const Callback &callback);
+void searchById(ID userId, Main::Session *session, bool retry, const Callback &callback);
 void searchById(ID userId, Main::Session *session, const Callback &callback);
