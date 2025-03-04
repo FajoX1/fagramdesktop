@@ -3138,7 +3138,6 @@ void HistoryWidget::updateControlsVisibility() {
 				}
 			}
 		} else if (isMuteUnmute()) {
-			toggle(_muteUnmute);
 			if (hasDiscussionGroup() && discuss_button) {
 				if (_discuss->isHidden()) {
 					_discuss->clearState();
@@ -3147,6 +3146,7 @@ void HistoryWidget::updateControlsVisibility() {
 			} else {
 				_discuss->hide();
 			}
+			toggle(_muteUnmute);
 		} else if (isBotStart()) {
 			toggle(_botStart);
 
@@ -5679,12 +5679,12 @@ void HistoryWidget::moveFieldControls() {
 			fullWidthButtonRect.y(),
 			width() / 2,
 			fullWidthButtonRect.height()));
-		_muteUnmute->setGeometry(myrtlrect(
+		_discuss->setGeometry(myrtlrect(
 			0,
 			fullWidthButtonRect.y(),
 			width() / 2,
 			fullWidthButtonRect.height()));
-		_discuss->setGeometry(myrtlrect(
+		_muteUnmute->setGeometry(myrtlrect(
 			width() / 2,
 			fullWidthButtonRect.y(),
 			width() - (width() / 2),
