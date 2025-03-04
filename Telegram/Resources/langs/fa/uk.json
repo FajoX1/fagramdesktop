@@ -60,10 +60,16 @@
     "fa_setting_need_restart": "FAgram перезапуститься, щоб змінити це налаштування",
     "fa_restart": "Перезапустити",
     "fa_discuss_button": "Обговорення",
-    "fa_go_to_first_message": "To the beginning",
-    "fa_message_details": "Details",
-    "fa_message_details_views": "Views",
-    "fa_message_details_share": "Shares",
-    "fa_message_details_date": "Date",
-    "fa_message_details_edit_date": "Edited"
+    "fa_go_to_first_message": "До початку",
+    "fa_message_details": "Подробиці",
+    "fa_message_details_views": "Перегляди",
+    "fa_message_details_share": "Поділилося",
+    "fa_message_details_date": "Дата",
+    "fa_message_details_edit_date": "Відредаговано",
+    "fa_message_details_forward_message_date": "Надіслане повідомлення",
+    "fa_message_details_filesize": "Розмір файлу",
+    "fa_message_details_filetype": "Тип файлу",
+    "fa_message_details_filename": "Ім'я файлу",
+    "fa_message_details_resolution": "Роздільна здатність",
+    "fa_message_details_datacenter": "Датацентр"
 }
