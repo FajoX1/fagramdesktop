@@ -54,5 +54,10 @@
     "fa_test_server": "Тестовий сервер",
     "fa_translation": "Переклад",
     "fa_force_snow": "Примусовий сніг",
-    "fa_local_tg_premium": "Локальний Телеграм Преміум"
+    "fa_local_tg_premium": "Локальний Телеграм Преміум",
+    "fa_show_message_details": "Показувати деталі повідомлення",
+    "fa_show_discuss_button": "Показувати кнопку обговорення",
+    "fa_setting_need_restart": "FAgram перезапуститься, щоб змінити це налаштування",
+    "fa_restart": "Перезапустити",
+    "fa_discuss_button": "Обговорення"
 }
