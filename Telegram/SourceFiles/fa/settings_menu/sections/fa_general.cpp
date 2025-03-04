@@ -53,32 +53,31 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 	::FASettings::JsonSettings::Write(); \
 }, container->lifetime());
 
-#define RestartSettingsMenuJsonSwitch(LangKey, Option) \
-    (([&]() { \
-        auto _btn = container->add(object_ptr<Button>( \
-            container, \
-            FAlang::RplTranslate(QString(#LangKey)), \
-            st::settingsButtonNoIcon \
-        )); \
-        _btn->toggleOn(rpl::single(::FASettings::JsonSettings::GetBool(#Option))); \
-        return _btn->toggledValue() \
-            | rpl::filter([=](bool enabled) { \
-                  if (enabled != ::FASettings::JsonSettings::GetBool(#Option)) { \
-                      _btn->toggleOn(rpl::single(::FASettings::JsonSettings::GetBool(#Option))); \
-                      controller->show(Ui::MakeConfirmBox({ \
-                          .text = FAlang::RplTranslate(QString("fa_setting_need_restart")), \
-                          .confirmed = [=] { \
-                              ::FASettings::JsonSettings::Write(); \
-                              ::FASettings::JsonSettings::Set(#Option, enabled); \
-                              ::FASettings::JsonSettings::Write(); \
-                              ::Core::Restart(); \
-                          }, \
-                          .confirmText = FAlang::RplTranslate(QString("fa_restart")) \
-                      })); \
-                  } \
-                  return false; \
-              }); \
-    })())
+#define RestartSettingsMenuJsonSwitch(LangKey, Option) do { \
+    auto _btn = container->add(object_ptr<Button>( \
+        container, \
+        FAlang::RplTranslate(QString(#LangKey)), \
+        st::settingsButtonNoIcon \
+    )); \
+    _btn->toggleOn(rpl::single(::FASettings::JsonSettings::GetBool(#Option))); \
+    _btn->toggledValue() \
+    | rpl::filter([=](bool enabled) { \
+          if (enabled != ::FASettings::JsonSettings::GetBool(#Option)) { \
+              _btn->toggleOn(rpl::single(::FASettings::JsonSettings::GetBool(#Option))); \
+              controller->show(Ui::MakeConfirmBox({ \
+                  .text = FAlang::RplTranslate(QString("fa_setting_need_restart")), \
+                  .confirmed = [=] { \
+                      ::FASettings::JsonSettings::Write(); \
+                      ::FASettings::JsonSettings::Set(#Option, enabled); \
+                      ::FASettings::JsonSettings::Write(); \
+                      ::Core::Restart(); \
+                  }, \
+                  .confirmText = FAlang::RplTranslate(QString("fa_restart")) \
+              })); \
+          } \
+          return false; \
+      }); \
+} while(0)
 
 namespace Settings {
 
@@ -101,11 +100,11 @@ namespace Settings {
         SettingsMenuJsonSwitch(fa_show_start_token, show_start_token);
         SettingsMenuJsonSwitch(fa_show_peer_ids, show_peer_id);
         SettingsMenuJsonSwitch(fa_show_dc_ids, show_dc_id);
-        SettingsMenuJsonSwitch(fa_id_in_botapi_type, show_id_botapi)
-        SettingsMenuJsonSwitch(fa_local_tg_premium, local_premium)
-        SettingsMenuJsonSwitch(fa_show_registration_date, show_registration_date)
-        SettingsMenuJsonSwitch(fa_hide_phone_in_settings, hide_phone_number)
-        RestartSettingsMenuJsonSwitch(fa_hide_stories, hide_stories)
+        SettingsMenuJsonSwitch(fa_id_in_botapi_type, show_id_botapi);
+        SettingsMenuJsonSwitch(fa_local_tg_premium, local_premium);
+        SettingsMenuJsonSwitch(fa_show_registration_date, show_registration_date);
+        SettingsMenuJsonSwitch(fa_hide_phone_in_settings, hide_phone_number);
+        RestartSettingsMenuJsonSwitch(fa_hide_stories, hide_stories);
     }
 
     void FAGeneral::SetupFAGeneral(not_null<Ui::VerticalLayout *> container, not_null<Window::SessionController *> controller) {

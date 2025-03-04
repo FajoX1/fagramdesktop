@@ -53,32 +53,31 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 	::FASettings::JsonSettings::Write(); \
 }, container->lifetime());
 
-#define RestartSettingsMenuJsonSwitch(LangKey, Option) \
-    (([&]() { \
-        auto _btn = container->add(object_ptr<Button>( \
-            container, \
-            FAlang::RplTranslate(QString(#LangKey)), \
-            st::settingsButtonNoIcon \
-        )); \
-        _btn->toggleOn(rpl::single(::FASettings::JsonSettings::GetBool(#Option))); \
-        return _btn->toggledValue() \
-            | rpl::filter([=](bool enabled) { \
-                  if (enabled != ::FASettings::JsonSettings::GetBool(#Option)) { \
-                      _btn->toggleOn(rpl::single(::FASettings::JsonSettings::GetBool(#Option))); \
-                      controller->show(Ui::MakeConfirmBox({ \
-                          .text = FAlang::RplTranslate(QString("fa_setting_need_restart")), \
-                          .confirmed = [=] { \
-                              ::FASettings::JsonSettings::Write(); \
-                              ::FASettings::JsonSettings::Set(#Option, enabled); \
-                              ::FASettings::JsonSettings::Write(); \
-                              ::Core::Restart(); \
-                          }, \
-                          .confirmText = FAlang::RplTranslate(QString("fa_restart")) \
-                      })); \
-                  } \
-                  return false; \
-              }); \
-    })())
+#define RestartSettingsMenuJsonSwitch(LangKey, Option) do { \
+    auto _btn = container->add(object_ptr<Button>( \
+        container, \
+        FAlang::RplTranslate(QString(#LangKey)), \
+        st::settingsButtonNoIcon \
+    )); \
+    _btn->toggleOn(rpl::single(::FASettings::JsonSettings::GetBool(#Option))); \
+    _btn->toggledValue() \
+    | rpl::filter([=](bool enabled) { \
+          if (enabled != ::FASettings::JsonSettings::GetBool(#Option)) { \
+              _btn->toggleOn(rpl::single(::FASettings::JsonSettings::GetBool(#Option))); \
+              controller->show(Ui::MakeConfirmBox({ \
+                  .text = FAlang::RplTranslate(QString("fa_setting_need_restart")), \
+                  .confirmed = [=] { \
+                      ::FASettings::JsonSettings::Write(); \
+                      ::FASettings::JsonSettings::Set(#Option, enabled); \
+                      ::FASettings::JsonSettings::Write(); \
+                      ::Core::Restart(); \
+                  }, \
+                  .confirmText = FAlang::RplTranslate(QString("fa_restart")) \
+              })); \
+          } \
+          return false; \
+      }); \
+} while(0)
 
 namespace Settings {
 
@@ -124,11 +123,11 @@ namespace Settings {
 			::FASettings::JsonSettings::GetInt("recent_stickers_limit"),
 			updateRecentStickersLimitHeight);
 		updateRecentStickersLimitLabel(::FASettings::JsonSettings::GetInt("recent_stickers_limit"));
-		SettingsMenuJsonSwitch(fa_disable_custom_chat_background, disable_custom_chat_background)
-		SettingsMenuJsonSwitch(fa_hide_open_webapp_button_chatlist, hide_open_webapp_button_chatlist)
-		SettingsMenuJsonSwitch(fa_show_discuss_button, show_discuss_button)
-		SettingsMenuJsonSwitch(fa_show_message_details, show_message_details)
-		RestartSettingsMenuJsonSwitch(fa_hide_all_chats_folder, hide_all_chats_folder)
+		SettingsMenuJsonSwitch(fa_disable_custom_chat_background, disable_custom_chat_background);
+		SettingsMenuJsonSwitch(fa_hide_open_webapp_button_chatlist, hide_open_webapp_button_chatlist);
+		SettingsMenuJsonSwitch(fa_show_discuss_button, show_discuss_button);
+		SettingsMenuJsonSwitch(fa_show_message_details, show_message_details);
+		RestartSettingsMenuJsonSwitch(fa_hide_all_chats_folder, hide_all_chats_folder);
     }
 
     void FAChats::SetupFAChats(not_null<Ui::VerticalLayout *> container, not_null<Window::SessionController *> controller) {

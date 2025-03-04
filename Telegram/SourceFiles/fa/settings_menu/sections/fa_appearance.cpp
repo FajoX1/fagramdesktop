@@ -54,32 +54,31 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 	::FASettings::JsonSettings::Write(); \
 }, container->lifetime());
 
-#define RestartSettingsMenuJsonSwitch(LangKey, Option) \
-    (([&]() { \
-        auto _btn = container->add(object_ptr<Button>( \
-            container, \
-            FAlang::RplTranslate(QString(#LangKey)), \
-            st::settingsButtonNoIcon \
-        )); \
-        _btn->toggleOn(rpl::single(::FASettings::JsonSettings::GetBool(#Option))); \
-        return _btn->toggledValue() \
-            | rpl::filter([=](bool enabled) { \
-                  if (enabled != ::FASettings::JsonSettings::GetBool(#Option)) { \
-                      _btn->toggleOn(rpl::single(::FASettings::JsonSettings::GetBool(#Option))); \
-                      controller->show(Ui::MakeConfirmBox({ \
-                          .text = FAlang::RplTranslate(QString("fa_setting_need_restart")), \
-                          .confirmed = [=] { \
-                              ::FASettings::JsonSettings::Write(); \
-                              ::FASettings::JsonSettings::Set(#Option, enabled); \
-                              ::FASettings::JsonSettings::Write(); \
-                              ::Core::Restart(); \
-                          }, \
-                          .confirmText = FAlang::RplTranslate(QString("fa_restart")) \
-                      })); \
-                  } \
-                  return false; \
-              }); \
-    })())
+#define RestartSettingsMenuJsonSwitch(LangKey, Option) do { \
+    auto _btn = container->add(object_ptr<Button>( \
+        container, \
+        FAlang::RplTranslate(QString(#LangKey)), \
+        st::settingsButtonNoIcon \
+    )); \
+    _btn->toggleOn(rpl::single(::FASettings::JsonSettings::GetBool(#Option))); \
+    _btn->toggledValue() \
+    | rpl::filter([=](bool enabled) { \
+          if (enabled != ::FASettings::JsonSettings::GetBool(#Option)) { \
+              _btn->toggleOn(rpl::single(::FASettings::JsonSettings::GetBool(#Option))); \
+              controller->show(Ui::MakeConfirmBox({ \
+                  .text = FAlang::RplTranslate(QString("fa_setting_need_restart")), \
+                  .confirmed = [=] { \
+                      ::FASettings::JsonSettings::Write(); \
+                      ::FASettings::JsonSettings::Set(#Option, enabled); \
+                      ::FASettings::JsonSettings::Write(); \
+                      ::Core::Restart(); \
+                  }, \
+                  .confirmText = FAlang::RplTranslate(QString("fa_restart")) \
+              })); \
+          } \
+          return false; \
+      }); \
+} while(0)
 
 namespace Settings {
 
@@ -130,8 +129,8 @@ namespace Settings {
 			updateUserpicRoundness);
     	updateUserpicRoundnessLabel(::FASettings::JsonSettings::GetInt("roundness"));
         Ui::AddDivider(container);
-		RestartSettingsMenuJsonSwitch(fa_use_default_rounding, use_default_rounding)
-		SettingsMenuJsonSwitch(fa_force_snow, force_snow)
+		RestartSettingsMenuJsonSwitch(fa_use_default_rounding, use_default_rounding);
+		SettingsMenuJsonSwitch(fa_force_snow, force_snow);
     }
 
     void FAAppearance::SetupFAAppearance(not_null<Ui::VerticalLayout *> container, not_null<Window::SessionController *> controller) {
