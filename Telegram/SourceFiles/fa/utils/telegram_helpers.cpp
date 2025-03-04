@@ -591,7 +591,7 @@ void MessageDetails(not_null<Ui::PopupMenu*> menu, HistoryItem *item) {
 				menu2->addAction(Ui::ContextActionWithSubText(
 					menu2->menu(),
 					st::menuIconTTL,
-					FAlang::Translate(QString("fa_message_details_forwarded_date")),
+					FAlang::Translate(QString("fa_message_details_forward_message_date")),
 					formatDateTime(messageForwardedDate)
 				));
 			}
