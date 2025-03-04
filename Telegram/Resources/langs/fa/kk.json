@@ -54,5 +54,10 @@
     "fa_test_server": "Тест сервер",
     "fa_translation": "Аударма",
     "fa_force_snow": "Мәжбүрлі қар",
-    "fa_local_tg_premium": "Жергілікті Telegram Premium"
+    "fa_local_tg_premium": "Жергілікті Telegram Premium",
+    "fa_show_message_details": "Show message's details",
+    "fa_show_discuss_button": "Show discuss button",
+    "fa_setting_need_restart": "FAgram will restart in order to change this setting",
+    "fa_restart": "Restart",
+    "fa_discuss_button": "Discuss"
 }
