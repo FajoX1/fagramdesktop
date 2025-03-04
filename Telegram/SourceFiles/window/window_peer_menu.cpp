@@ -884,7 +884,7 @@ void Filler::addBlockUser() {
 void Filler::addGoToFirstMessage()
 {
 	_addAction(
-		FAlang::Translate(QString("fa_go_to_beginning")),
+		FAlang::Translate(QString("fa_go_to_first_message")),
 		GoToFirstMessageHandler(_controller, _peer),
 		&st::menuIconGoToBeginning);
 }

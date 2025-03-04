@@ -53,26 +53,31 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 	::FASettings::JsonSettings::Write(); \
 }, container->lifetime());
 
-#define RestartSettingsMenuJsonSwitch(LangKey, Option) container->add(object_ptr<Button>( \
-    container, \
-    FAlang::RplTranslate(QString(#LangKey)), \
-    st::settingsButtonNoIcon \
-))->toggleOn( \
-    rpl::single(::FASettings::JsonSettings::GetBool(#Option)) \
-)->toggledValue( \
-) | rpl::filter([=](bool enabled) { \
-    controller->show(Ui::MakeConfirmBox({ \
-        .text = FAlang::RplTranslate(QString("fa_setting_need_restart")), \
-        .confirmed = [=] { \
-            ::FASettings::JsonSettings::Write(); \
-            ::FASettings::JsonSettings::Set(#Option, enabled); \
-            ::FASettings::JsonSettings::Write(); \
-            ::Core::Restart(); \
-        }, \
-        .confirmText = FAlang::RplTranslate(QString("fa_restart")) \
-    })); \
-    return (enabled != ::FASettings::JsonSettings::GetBool(#Option)); \
-}) | rpl::start_with_next([](bool) {}, container->lifetime());
+#define RestartSettingsMenuJsonSwitch(LangKey, Option) ([&]() { \
+    auto _btn = container->add(object_ptr<Button>( \
+        container, \
+        FAlang::RplTranslate(QString(#LangKey)), \
+        st::settingsButtonNoIcon \
+    )); \
+    _btn->toggleOn(rpl::single(::FASettings::JsonSettings::GetBool(#Option))); \
+    return _btn->toggledValue() \
+        | rpl::filter([=](bool enabled) { \
+              if (enabled != ::FASettings::JsonSettings::GetBool(#Option)) { \
+                  _btn->toggleOn(rpl::single(::FASettings::JsonSettings::GetBool(#Option))); \
+                  controller->show(Ui::MakeConfirmBox({ \
+                      .text = FAlang::RplTranslate(QString("fa_setting_need_restart")), \
+                      .confirmed = [=] { \
+                          ::FASettings::JsonSettings::Write(); \
+                          ::FASettings::JsonSettings::Set(#Option, enabled); \
+                          ::FASettings::JsonSettings::Write(); \
+                          ::Core::Restart(); \
+                      }, \
+                      .confirmText = FAlang::RplTranslate(QString("fa_restart")) \
+                  })); \
+              } \
+              return false; \
+          }, container->lifetime()); \
+}())
 
 namespace Settings {
 
