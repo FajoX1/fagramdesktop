@@ -119,6 +119,7 @@ namespace Settings {
 		SettingsMenuJsonSwitch(fa_disable_custom_chat_background, disable_custom_chat_background)
 		SettingsMenuJsonSwitch(fa_hide_open_webapp_button_chatlist, hide_open_webapp_button_chatlist)
 		SettingsMenuJsonSwitch(fa_show_discuss_button, show_discuss_button)
+		SettingsMenuJsonSwitch(fa_show_message_details, show_message_details)
 		RestartSettingsMenuJsonSwitch(fa_hide_all_chats_folder, hide_all_chats_folder)
     }
 

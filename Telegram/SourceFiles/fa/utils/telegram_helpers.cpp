@@ -470,7 +470,7 @@ QString getMediaDC(not_null<HistoryItem*> message) {
 
 // thanks ayugram
 void MessageDetails(not_null<Ui::PopupMenu*> menu, HistoryItem *item) {
-    bool show_message_details = FASettings::JsonSettings::GetBool("fa_show_message_details");
+    bool show_message_details = FASettings::JsonSettings::GetBool("show_message_details");
     if (!show_message_details) {
         return;
     }

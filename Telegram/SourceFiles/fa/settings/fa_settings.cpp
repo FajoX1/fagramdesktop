@@ -211,6 +211,9 @@ const std::map<QString, Definition, std::greater<QString>> DefinitionMap {
 	{ "force_snow", {
 		.type = SettingType::BoolSetting,
 		.defaultValue = false, }},
+	{ "show_message_details", {
+		.type = SettingType::BoolSetting,
+		.defaultValue = true, }},
 };
 
 using OldOptionKey = QString;
