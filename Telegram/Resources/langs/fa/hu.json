@@ -59,5 +59,17 @@
     "fa_show_discuss_button": "Show discuss button",
     "fa_setting_need_restart": "FAgram will restart in order to change this setting",
     "fa_restart": "Restart",
-    "fa_discuss_button": "Discuss"
+    "fa_discuss_button": "Discuss",
+    "fa_go_to_first_message": "To the beginning",
+    "fa_message_details": "Details",
+    "fa_message_details_views": "Views",
+    "fa_message_details_share": "Shared",
+    "fa_message_details_date": "Date",
+    "fa_message_details_edit_date": "Edited",
+    "fa_message_details_forward_message_date": "Forward message",
+    "fa_message_details_filesize": "File size",
+    "fa_message_details_filetype": "File type",
+    "fa_message_details_filename": "File name",
+    "fa_message_details_resolution": "Resolution",
+    "fa_message_details_datacenter": "Datacenter"
 }
