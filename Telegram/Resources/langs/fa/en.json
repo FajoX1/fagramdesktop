@@ -65,5 +65,11 @@
     "fa_message_details_views": "Views",
     "fa_message_details_share": "Shares",
     "fa_message_details_date": "Date",
-    "fa_message_details_edit_date": "Edited"
+    "fa_message_details_edit_date": "Edited",
+    "fa_message_details_forward_message_date": "Forward message",
+    "fa_message_details_filesize": "File size",
+    "fa_message_details_filetype": "File type",
+    "fa_message_details_filename": "File name",
+    "fa_message_details_resolution": "Resolution",
+    "fa_message_details_datacenter": "Datacenter"
 }
