@@ -61,9 +61,7 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 ))->toggleOn( \
     rpl::single(::FASettings::JsonSettings::GetBool(#Option)) \
 )->toggledValue( \
-) | rpl::filter([](bool enabled) { \
-    return FASettings::JsonSettings::GetBool(#Option); \
-}) | rpl::start_with_next([=](bool enabled) { \
+) | rpl::filter([=](bool enabled) { \
     controller->show(Ui::MakeConfirmBox({ \
         .text = FAlang::RplTranslate(QString("fa_setting_need_restart")), \
         .confirmed = [=] { \
@@ -74,7 +72,8 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
         }, \
         .confirmText = FAlang::RplTranslate(QString("fa_restart")) \
     })); \
-}, container->lifetime());
+    return (enabled != ::FASettings::JsonSettings::GetBool(#Option)); \
+}) | rpl::start_with_next([](bool) {}, container->lifetime());
 
 namespace Settings {
 
