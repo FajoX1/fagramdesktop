@@ -54,31 +54,32 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 	::FASettings::JsonSettings::Write(); \
 }, container->lifetime());
 
-#define RestartSettingsMenuJsonSwitch(LangKey, Option) ([&]() { \
-    auto _btn = container->add(object_ptr<Button>( \
-        container, \
-        FAlang::RplTranslate(QString(#LangKey)), \
-        st::settingsButtonNoIcon \
-    )); \
-    _btn->toggleOn(rpl::single(::FASettings::JsonSettings::GetBool(#Option))); \
-    return _btn->toggledValue() \
-        | rpl::filter([=](bool enabled) { \
-              if (enabled != ::FASettings::JsonSettings::GetBool(#Option)) { \
-                  _btn->toggleOn(rpl::single(::FASettings::JsonSettings::GetBool(#Option))); \
-                  controller->show(Ui::MakeConfirmBox({ \
-                      .text = FAlang::RplTranslate(QString("fa_setting_need_restart")), \
-                      .confirmed = [=] { \
-                          ::FASettings::JsonSettings::Write(); \
-                          ::FASettings::JsonSettings::Set(#Option, enabled); \
-                          ::FASettings::JsonSettings::Write(); \
-                          ::Core::Restart(); \
-                      }, \
-                      .confirmText = FAlang::RplTranslate(QString("fa_restart")) \
-                  })); \
-              } \
-              return false; \
-          }); \
-}())
+#define RestartSettingsMenuJsonSwitch(LangKey, Option) \
+    (([&]() { \
+        auto _btn = container->add(object_ptr<Button>( \
+            container, \
+            FAlang::RplTranslate(QString(#LangKey)), \
+            st::settingsButtonNoIcon \
+        )); \
+        _btn->toggleOn(rpl::single(::FASettings::JsonSettings::GetBool(#Option))); \
+        return _btn->toggledValue() \
+            | rpl::filter([=](bool enabled) { \
+                  if (enabled != ::FASettings::JsonSettings::GetBool(#Option)) { \
+                      _btn->toggleOn(rpl::single(::FASettings::JsonSettings::GetBool(#Option))); \
+                      controller->show(Ui::MakeConfirmBox({ \
+                          .text = FAlang::RplTranslate(QString("fa_setting_need_restart")), \
+                          .confirmed = [=] { \
+                              ::FASettings::JsonSettings::Write(); \
+                              ::FASettings::JsonSettings::Set(#Option, enabled); \
+                              ::FASettings::JsonSettings::Write(); \
+                              ::Core::Restart(); \
+                          }, \
+                          .confirmText = FAlang::RplTranslate(QString("fa_restart")) \
+                      })); \
+                  } \
+                  return false; \
+              }); \
+    })())
 
 namespace Settings {
 
