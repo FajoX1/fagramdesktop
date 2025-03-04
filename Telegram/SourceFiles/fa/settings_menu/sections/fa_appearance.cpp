@@ -60,21 +60,18 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
     st::settingsButtonNoIcon \
 ))->toggleOn( \
     rpl::single(::FASettings::JsonSettings::GetBool(#Option)) \
-)->toggledValue( \
-) | rpl::filter([](bool enabled) { \
-    return (enabled != ::FASettings::JsonSettings::GetBool(#Option)); \
-}) | rpl::start_with_next([=](bool enabled) { \
+)->addClickHandler([=] { \
     controller->show(Ui::MakeConfirmBox({ \
         .text = FAlang::RplTranslate(QString("fa_setting_need_restart")), \
         .confirmed = [=] { \
             ::FASettings::JsonSettings::Write(); \
-            ::FASettings::JsonSettings::Set(#Option, enabled); \
+            ::FASettings::JsonSettings::Set(#Option, !::FASettings::JsonSettings::GetBool(#Option)); \
             ::FASettings::JsonSettings::Write(); \
             ::Core::Restart(); \
         }, \
         .confirmText = FAlang::RplTranslate(QString("fa_restart")) \
     })); \
-}, container->lifetime());
+})
 
 namespace Settings {
 
