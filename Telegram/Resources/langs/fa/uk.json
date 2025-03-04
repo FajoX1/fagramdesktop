@@ -59,5 +59,11 @@
     "fa_show_discuss_button": "Показувати кнопку обговорення",
     "fa_setting_need_restart": "FAgram перезапуститься, щоб змінити це налаштування",
     "fa_restart": "Перезапустити",
-    "fa_discuss_button": "Обговорення"
+    "fa_discuss_button": "Обговорення",
+    "fa_go_to_first_message": "To the beginning",
+    "fa_message_details": "Details",
+    "fa_message_details_views": "Views",
+    "fa_message_details_share": "Shares",
+    "fa_message_details_date": "Date",
+    "fa_message_details_edit_date": "Edited"
 }
