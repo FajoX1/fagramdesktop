@@ -216,8 +216,8 @@ ActionStickerPackAuthor::ActionStickerPackAuthor(not_null<Menu::Menu*> menu,
 						[=]
 						{
 						},
-						FAlang::Translate(QString("fa_message_pack_owner")),
-						QString(FAlang::Translate("fa_message_pack_owner_fetching"))),
+						FAlang::Translate(QString("fa_pack_owner")),
+						QString("...")),
 	  _session(session) {
 	searchAuthor(authorId);
 }
@@ -233,7 +233,7 @@ void ActionStickerPackAuthor::searchAuthor(ID authorId) {
 					   return;
 				   }
 				   if (username.isEmpty() && !user) {
-					   _subText = QString(FAlang::Translate(QString("fa_pack_owner_not_found")));
+					   _subText = QString(FAlang::Translate(QString("fa_not_found")));
 					   setClickedCallback(
 						   [=]
 						   {
