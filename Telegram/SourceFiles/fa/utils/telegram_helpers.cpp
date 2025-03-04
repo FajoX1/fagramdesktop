@@ -614,7 +614,7 @@ void MessageDetails(not_null<Ui::PopupMenu*> menu, HistoryItem *item) {
 					menu2->addAction(Ui::ContextActionWithSubText(
 						menu2->menu(),
 						st::menuIconShowAll,
-						FAlang::Translate(QString("fa_message_details_type")),
+						FAlang::Translate(QString("fa_message_details_filetype")),
 						mime.name()
 					));
 				}
@@ -638,7 +638,7 @@ void MessageDetails(not_null<Ui::PopupMenu*> menu, HistoryItem *item) {
 					menu2->addAction(Ui::ContextActionWithSubText(
 						menu2->menu(),
 						st::menuIconStats,
-						FAlang::Translate(QString("fa_message_details_resoultion")),
+						FAlang::Translate(QString("fa_message_details_resolution")),
 						mediaResolution
 					));
 				}
