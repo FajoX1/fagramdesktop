@@ -54,5 +54,10 @@
     "fa_test_server": "Testserver",
     "fa_translation": "Übersetzung",
     "fa_force_snow": "Erzwungener Schneefall",
-    "fa_local_tg_premium": "Lokales Telegramm Premium"
+    "fa_local_tg_premium": "Lokales Telegramm Premium",
+    "fa_show_message_details": "Show message's details",
+    "fa_show_discuss_button": "Show discuss button",
+    "fa_setting_need_restart": "FAgram will restart in order to change this setting",
+    "fa_restart": "Restart",
+    "fa_discuss_button": "Discuss"
 }
