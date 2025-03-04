@@ -77,7 +77,7 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
                   })); \
               } \
               return false; \
-          }, container->lifetime()); \
+          }); \
 }())
 
 namespace Settings {
