@@ -60,7 +60,7 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
         st::settingsButtonNoIcon \
     )); \
     btn->toggleOn(rpl::single(::FASettings::JsonSettings::GetBool(#Option))); \
-    btn->toggledValue() \
+    [[maybe_unused]] auto subscription = btn->toggledValue() \
     | rpl::start_with_next([=](bool enabled) { \
         if (enabled != ::FASettings::JsonSettings::GetBool(#Option)) { \
             btn->toggleOn(rpl::single(::FASettings::JsonSettings::GetBool(#Option))); \
