@@ -1,4 +1,4 @@
-1.1.7 (x.03.2025)
+1.1.7 (05.03.2025)
 
 - Message's details
 - Channel's discuss button
