@@ -71,5 +71,6 @@
     "fa_message_details_filetype": "Fayl turi",
     "fa_message_details_filename": "Fayl nomi",
     "fa_message_details_resolution": "Ruxsat",
-    "fa_message_details_datacenter": "Ma'lumot markazi"
+    "fa_message_details_datacenter": "Ma'lumot markazi",
+    "fa_pack_owner": "Paket egasi"
 }
