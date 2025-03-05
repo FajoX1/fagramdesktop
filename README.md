@@ -26,10 +26,6 @@ The latest version is available for
 * [Windows](https://t.me/FAgramWindows)
 * [Linux](https://t.me/FAgramLinux)
 
-<a href="https://snapcraft.io/fagram">
-  <img width=150, alt="Get it from the Snap Store" src="https://snapcraft.io/static/images/badges/en/snap-store-black.svg" />
-</a>
-
 ## <h2 border="none"><img src="https://github.com/hikariatama/assets/raw/master/981-consultation-flat.webp" height="54" align="middle">Translation</h2>
 
 > You can help to translate FAgram.
