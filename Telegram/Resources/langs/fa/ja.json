@@ -71,5 +71,6 @@
     "fa_message_details_filetype": "ファイルタイプ",
     "fa_message_details_filename": "ファイル名",
     "fa_message_details_resolution": "解像度",
-    "fa_message_details_datacenter": "データセンター"
+    "fa_message_details_datacenter": "データセンター",
+    "fa_pack_owner": "パックの所有者"
 }
