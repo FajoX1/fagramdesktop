@@ -1,3 +1,6 @@
+1.1.8 (05.03.2025)
+- Fix join channel button
+
 1.1.7 (05.03.2025)
 
 - Message's details
