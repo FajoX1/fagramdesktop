@@ -3124,16 +3124,18 @@ void HistoryWidget::updateControlsVisibility() {
 			toggle(_unblock);
 		} else if (isJoinChannel()) {
 			toggle(_joinChannel);
-			_discuss->hide();
 			if (hasDiscussionGroup() && discuss_button) {
 				if (_discuss->isHidden()) {
 					_discuss->clearState();
 					_discuss->show();
 				}
 			}
-			if (_joinChannel->isHidden()) {
-				_joinChannel->clearState();
-				_joinChannel->show();
+			else {
+				_discuss->hide();
+				if (_joinChannel->isHidden()) {
+					_joinChannel->clearState();
+					_joinChannel->show();
+				}
 			}
 		} else if (isMuteUnmute()) {
 			if (hasDiscussionGroup() && discuss_button) {
@@ -5672,11 +5674,6 @@ void HistoryWidget::moveFieldControls() {
 	_botStart->setGeometry(fullWidthButtonRect);
 	_unblock->setGeometry(fullWidthButtonRect);
 	if (hasDiscussionGroup() && discuss_button) {
-		_joinChannel->setGeometry(myrtlrect(
-			0,
-			fullWidthButtonRect.y(),
-			width() / 2,
-			fullWidthButtonRect.height()));
 		_discuss->setGeometry(myrtlrect(
 			0,
 			fullWidthButtonRect.y(),
@@ -5687,6 +5684,7 @@ void HistoryWidget::moveFieldControls() {
 			fullWidthButtonRect.y(),
 			width() - (width() / 2),
 			fullWidthButtonRect.height()));
+		_joinChannel->setGeometry(fullWidthButtonRect);
 	} else {
 		_muteUnmute->setGeometry(fullWidthButtonRect);
 		_joinChannel->setGeometry(fullWidthButtonRect);
