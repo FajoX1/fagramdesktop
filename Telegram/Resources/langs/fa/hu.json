@@ -71,5 +71,6 @@
     "fa_message_details_filetype": "File type",
     "fa_message_details_filename": "File name",
     "fa_message_details_resolution": "Resolution",
-    "fa_message_details_datacenter": "Datacenter"
+    "fa_message_details_datacenter": "Datacenter",
+    "fa_pack_owner": "Pack owner"
 }
