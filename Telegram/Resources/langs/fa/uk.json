@@ -71,5 +71,6 @@
     "fa_message_details_filetype": "Тип файлу",
     "fa_message_details_filename": "Ім'я файлу",
     "fa_message_details_resolution": "Роздільна здатність",
-    "fa_message_details_datacenter": "Датацентр"
+    "fa_message_details_datacenter": "Датацентр",
+    "fa_pack_owner": "Власник паку"
 }

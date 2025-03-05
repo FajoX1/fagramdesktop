@@ -71,5 +71,6 @@
     "fa_message_details_filetype": "Файл түрі",
     "fa_message_details_filename": "Файл атауы",
     "fa_message_details_resolution": "Ажыратымдылық",
-    "fa_message_details_datacenter": "Деректер орталығы"
+    "fa_message_details_datacenter": "Деректер орталығы",
+    "fa_pack_owner": "Пакеттің иесі"
 }

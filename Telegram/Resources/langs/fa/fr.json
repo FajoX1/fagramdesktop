@@ -71,5 +71,6 @@
     "fa_message_details_filetype": "Type de fichier",
     "fa_message_details_filename": "Nom du fichier",
     "fa_message_details_resolution": "Résolution",
-    "fa_message_details_datacenter": "Centre de données"
+    "fa_message_details_datacenter": "Centre de données",
+    "fa_pack_owner": "Propriétaire de la meute"
 }

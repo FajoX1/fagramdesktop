@@ -71,5 +71,6 @@
     "fa_message_details_filetype": "Tipo de archivo",
     "fa_message_details_filename": "Nombre del archivo",
     "fa_message_details_resolution": "Resolución",
-    "fa_message_details_datacenter": "Centro de datos"
+    "fa_message_details_datacenter": "Centro de datos",
+    "fa_pack_owner": "Dueño de la manada"
 }

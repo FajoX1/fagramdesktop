@@ -71,5 +71,6 @@
     "fa_message_details_filetype": "Dateityp",
     "fa_message_details_filename": "Dateiname",
     "fa_message_details_resolution": "Auflösung",
-    "fa_message_details_datacenter": "Rechenzentrum"
+    "fa_message_details_datacenter": "Rechenzentrum",
+    "fa_pack_owner": "Besitzer des Rudels"
 }

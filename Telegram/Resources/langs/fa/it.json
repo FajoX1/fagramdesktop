@@ -71,5 +71,6 @@
     "fa_message_details_filetype": "Tipo di file",
     "fa_message_details_filename": "Nome file",
     "fa_message_details_resolution": "Risoluzione",
-    "fa_message_details_datacenter": "Data center"
+    "fa_message_details_datacenter": "Data center",
+    "fa_pack_owner": "Proprietario del branco"
 }
