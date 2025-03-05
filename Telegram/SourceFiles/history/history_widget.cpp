@@ -3124,18 +3124,16 @@ void HistoryWidget::updateControlsVisibility() {
 			toggle(_unblock);
 		} else if (isJoinChannel()) {
 			toggle(_joinChannel);
+			_discuss->hide();
 			if (hasDiscussionGroup() && discuss_button) {
 				if (_discuss->isHidden()) {
 					_discuss->clearState();
 					_discuss->show();
 				}
 			}
-			else {
-				_discuss->hide();
-				if (_joinChannel->isHidden()) {
-					_joinChannel->clearState();
-					_joinChannel->show();
-				}
+			if (_joinChannel->isHidden()) {
+				_joinChannel->clearState();
+				_joinChannel->show();
 			}
 		} else if (isMuteUnmute()) {
 			if (hasDiscussionGroup() && discuss_button) {
