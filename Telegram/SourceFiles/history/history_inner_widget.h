@@ -105,6 +105,8 @@ public:
 		return _theme.get();
 	}
 
+	[[nodiscard]] Api::SendAction prepareSendAction(
+		History *history, Api::SendOptions options) const;
 	Ui::ChatPaintContext preparePaintContext(const QRect &clip) const;
 
 	void messagesReceived(

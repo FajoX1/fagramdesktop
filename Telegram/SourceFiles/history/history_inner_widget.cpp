@@ -1636,6 +1636,17 @@ void HistoryInner::mousePressEvent(QMouseEvent *e) {
 	mouseActionStart(e->globalPos(), e->button());
 }
 
+// thx 64gram
+Api::SendAction HistoryInner::prepareSendAction(
+		History *history, Api::SendOptions options) const {
+	auto result = Api::SendAction(history, options);
+	result.replyTo = FullReplyTo();
+	if (history->peer->isUser()) {
+		result.options.sendAs = nullptr;
+	}
+	return result;
+}
+
 void HistoryInner::mouseActionStart(const QPoint &screenPos, Qt::MouseButton button) {
 	mouseActionUpdate(screenPos);
 	if (button != Qt::LeftButton) return;
@@ -2136,6 +2147,16 @@ HistoryView::SelectedQuote HistoryInner::selectedQuote(
 
 void HistoryInner::contextMenuEvent(QContextMenuEvent *e) {
 	showContextMenu(e);
+}
+
+Api::SendAction HistoryInner::prepareSendAction(
+		History *history, Api::SendOptions options) const {
+	auto result = Api::SendAction(history, options);
+	result.replyTo = FullReplyTo();
+	if (history->peer->isUser()) {
+		result.options.sendAs = nullptr;
+	}
+	return result;
 }
 
 void HistoryInner::showContextMenu(QContextMenuEvent *e, bool showFromTouch) {
