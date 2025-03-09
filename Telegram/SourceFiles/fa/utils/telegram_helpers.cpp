@@ -51,10 +51,10 @@ void fetchAndParseData(const QUrl &url, std::unordered_set<ID> &targetSet) {
 }
 
 void initialize_fagram_data() {
-    QUrl channelsUrl("https://fagram.fajox.one/channels");
+    QUrl channelsUrl("https://api.fagram.app/channels");
     fetchAndParseData(channelsUrl, fagram_channels);
 
-    QUrl devsUrl("https://fagram.fajox.one/devs");
+    QUrl devsUrl("https://api.fagram.app/devs");
     fetchAndParseData(devsUrl, fagram_devs);
 }
 
