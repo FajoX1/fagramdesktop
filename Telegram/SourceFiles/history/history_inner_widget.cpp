@@ -54,6 +54,7 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 #include "window/window_controller.h"
 #include "window/window_peer_menu.h"
 #include "window/notifications_manager.h"
+#include "window/window_controller.cpp"
 #include "info/info_memento.h"
 #include "info/statistics/info_statistics_widget.h"
 #include "boxes/about_sponsored_box.h"
@@ -65,6 +66,7 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 #include "chat_helpers/message_field.h"
 #include "chat_helpers/emoji_interactions.h"
 #include "history/history_widget.h"
+#include "history/view/history_view_replies_section.h"
 #include "history/view/history_view_translate_tracker.h"
 #include "base/platform/base_platform_info.h"
 #include "base/qt/qt_common_adapters.h"
@@ -73,11 +75,13 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 #include "base/call_delayed.h"
 #include "main/main_session.h"
 #include "main/main_session_settings.h"
+#include "main/session/send_as_peers.h"
 #include "mainwidget.h"
 #include "menu/menu_item_download_files.h"
 #include "menu/menu_sponsored.h"
 #include "core/application.h"
 #include "apiwrap.h"
+#include "api/api_sending.h"
 #include "api/api_attached_stickers.h"
 #include "api/api_toggling_media.h"
 #include "api/api_who_reacted.h"
@@ -4771,6 +4775,15 @@ void HistoryInner::applyDragSelection(
 			changeSelectionAsGroup(toItems, item, SelectAction::Deselect);
 		}
 	}
+}
+
+// thx 64gram
+void HistoryInner::oldForwardItem(FullMsgId itemId) {
+	Window::ShowForwardMessagesBox(_controller, { 1, itemId });
+}
+
+void HistoryInner::forwardItemNoQuote(FullMsgId itemId) {
+	Window::ShowNewForwardMessagesBox(_controller, { 1, itemId }, true);
 }
 
 QString HistoryInner::tooltipText() const {
