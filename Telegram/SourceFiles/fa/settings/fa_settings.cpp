@@ -214,6 +214,15 @@ const std::map<QString, Definition, std::greater<QString>> DefinitionMap {
 	{ "show_message_details", {
 		.type = SettingType::BoolSetting,
 		.defaultValue = true, }},
+	{ "show_message_details", {
+		.type = SettingType::BoolSetting,
+		.defaultValue = true, }},
+	{ "show_repeat_option", {
+		.type = SettingType::BoolSetting,
+		.defaultValue = true, }},
+	{ "repeat_reply_to_orig_msg", {
+		.type = SettingType::BoolSetting,
+		.defaultValue = false, }},
 };
 
 using OldOptionKey = QString;

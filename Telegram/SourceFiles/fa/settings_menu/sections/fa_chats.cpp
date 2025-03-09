@@ -124,6 +124,8 @@ namespace Settings {
 		SettingsMenuJsonSwitch(fa_show_discuss_button, show_discuss_button);
 		SettingsMenuJsonSwitch(fa_show_message_details, show_message_details);
 		RestartSettingsMenuJsonSwitch(fa_hide_all_chats_folder, hide_all_chats_folder);
+		SettingsMenuJsonSwitch(fa_show_repeat_option, show_repeat_option);
+		SettingsMenuJsonSwitch(fa_repeat_to_orig_msg, repeat_reply_to_orig_msg);
     }
 
     void FAChats::SetupFAChats(not_null<Ui::VerticalLayout *> container, not_null<Window::SessionController *> controller) {

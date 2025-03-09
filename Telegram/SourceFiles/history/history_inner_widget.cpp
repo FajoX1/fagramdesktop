@@ -7,6 +7,8 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 */
 #include "history/history_inner_widget.h"
 
+#include "fa/lang/fa_lang.h"
+#include "fa/settings/fa_settings.h"
 #include "fa/utils/telegram_helpers.h"
 
 #include "chat_helpers/stickers_emoji_pack.h"
@@ -2649,6 +2651,96 @@ void HistoryInner::showContextMenu(QContextMenuEvent *e, bool showFromTouch) {
 			const auto itemId = item->fullId();
 			const auto blockSender = item->history()->peer->isRepliesChat();
 			if (isUponSelected != -2) {
+				auto fwdSubmenu = std::make_unique<Ui::PopupMenu>(this, st::popupMenuWithIcons);
+				auto repeatSubmenu = std::make_unique<Ui::PopupMenu>(this, st::popupMenuWithIcons);
+				if (item->allowsForward()) {
+					fwdSubmenu->addAction(FAlang::Translate(QString("fa_context_forward_msg_old")), [=] {
+						oldForwardItem(itemId);
+					}, &st::menuIconForward);
+					fwdSubmenu->addAction(tr::lng_context_forward_msg(tr::now), [=] {
+						forwardItem(itemId);
+					}, &st::menuIconForward);
+					fwdSubmenu->addAction(FAlang::Translate(QString("fa_context_forward_msg_no_quote")), [=] {
+						forwardItemNoQuote(itemId);
+					}, &st::menuIconForward);
+				}
+				if ((item->history()->peer->isMegagroup() || item->history()->peer->isChat() || item->history()->peer->isUser())) {
+					bool show_repeat_option = FASettings::JsonSettings::GetBool("show_repeat_option");
+					bool repeat_reply_to_orig_msg = FASettings::JsonSettings::GetBool("repeat_reply_to_orig_msg");
+					if (show_repeat_option) {
+						if (item->allowsForward()) {
+							repeatSubmenu->addAction(FAlang::Translate(QString("fa_context_repeat_option")), [=] {
+								if (item->id <= 0) return;
+								const auto api = &item->history()->peer->session().api();
+								auto action = Api::SendAction(item->history()->peer->owner().history(item->history()->peer),Api::SendOptions{.sendAs = _history->session().sendAsPeers().resolveChosen(_history->peer)});
+								action.clearDraft = false;
+								if (item->history()->peer->isUser() || item->history()->peer->isChat()) {
+									action.options.sendAs = nullptr;
+								}
+
+								const auto history = item->history()->peer->owner().history(item->history()->peer);
+								auto resolved = history->resolveForwardDraft(Data::ForwardDraft{ .ids = MessageIdsList(1, itemId) });
+
+								api->forwardMessages(std::move(resolved), action, [] {
+									Ui::Toast::Show(tr::lng_share_done(tr::now));
+								});
+							}, &st::menuIconDiscussion);
+						}
+						if (!item->isService() && !item->emptyText() && item->media() == nullptr) {
+							repeatSubmenu->addAction(FAlang::Translate(QString("fa_repeat_msg_no_fwd")), [=] {
+								if (item->id <= 0) return;
+								const auto api = &item->history()->peer->session().api();
+								auto message = ApiWrap::MessageToSend(prepareSendAction(_history,Api::SendOptions{.sendAs = _history->session().sendAsPeers().resolveChosen(_history->peer)}));
+								message.textWithTags = {item->originalText().text,TextUtilities::ConvertEntitiesToTextTags(item->originalText().entities)};
+								if (item->history()->peer->isUser() || item->history()->peer->isChat()) {
+									message.action.options.sendAs = nullptr;
+								}
+								if (repeat_reply_to_orig_msg) {
+									message.action.replyTo = FullReplyTo{
+																.messageId = item->fullId(),
+															};
+								}
+								api->sendMessage(std::move(message));
+							}, &st::menuIconDiscussion);
+						} else if (!item->isService() && item->media()->document() != nullptr && item->media()->document()->sticker() != nullptr) {
+							if (item->allowsForward()) {
+								repeatSubmenu->addAction(FAlang::Translate(QString("fa_repeat_msg_no_fwd")), [=] {
+									if (item->id <= 0) return;
+									const auto api = &item->history()->peer->session().api();
+									auto action = Api::SendAction(item->history()->peer->owner().history(item->history()->peer), Api::SendOptions{ .sendAs = _history->session().sendAsPeers().resolveChosen(_history->peer) });
+									action.clearDraft = false;
+									if (item->history()->peer->isUser() || item->history()->peer->isChat()) {
+										action.options.sendAs = nullptr;
+									}
+									if (repeat_reply_to_orig_msg) {
+										action.replyTo = FullReplyTo{
+															.messageId = item->fullId(),
+														};
+									}
+
+									const auto history = item->history()->peer->owner().history(item->history()->peer);
+									auto resolved = history->resolveForwardDraft(Data::ForwardDraft{ .ids = MessageIdsList(1, itemId), .options = Data::ForwardOptions::NoSenderNames });
+
+									api->forwardMessages(std::move(resolved), action, [] {
+										Ui::Toast::Show(tr::lng_share_done(tr::now));
+										});
+								}, &st::menuIconDiscussion);
+							}
+							else {
+								repeatSubmenu->addAction(FAlang::Translate(QString("fa_repeat_msg_no_fwd")), [=] {
+									if (item->id <= 0) return;
+									const auto document = item->media()->document();
+									const auto history = item->history()->peer->owner().history(item->history()->peer);
+									auto message = ApiWrap::MessageToSend(prepareSendAction(history, Api::SendOptions{ .sendAs = _history->session().sendAsPeers().resolveChosen(_history->peer) }));
+									if (item->history()->peer->isUser() || item->history()->peer->isChat()) {
+										message.action.options.sendAs = nullptr;
+									}
+									Api::SendExistingDocument(std::move(message), document);
+								}, & st::menuIconDiscussion);
+							}
+						}
+					}
+				}
 				if (item->allowsForward()) {
 					_menu->addAction(tr::lng_context_forward_msg(tr::now), [=] {
 						forwardItem(itemId);
