@@ -2,7 +2,7 @@
 
 <img alt="Telegram" width="150x" src="https://github.com/FajoX1/fagramdesktop/blob/dev/Telegram/Resources/art/icon512@2x.png?raw=true">
 
-<h1><a href='https://t.me/FAgramClient'>FAgram Desktop</a></h1>
+<h1><a href='https://fagram.app'>FAgram Desktop</a></h1>
 
 #### This is the complete source code of FAgram Desktop.
 
