@@ -10,6 +10,7 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 #include "api/api_chat_links.h"
 #include "boxes/premium_preview_box.h"
 #include "core/click_handler_types.h"
+#include "core/ui_integration.h" // TextContext
 #include "data/business/data_business_info.h"
 #include "data/business/data_business_chatbots.h"
 #include "data/business/data_shortcut_messages.h"
@@ -147,7 +148,6 @@ using Order = std::vector<QString>;
 				tr::lng_business_subtitle_chat_intro(),
 				tr::lng_business_about_chat_intro(),
 				PremiumFeature::ChatIntro,
-				true,
 			},
 		},
 		{
@@ -157,7 +157,6 @@ using Order = std::vector<QString>;
 				tr::lng_business_subtitle_chat_links(),
 				tr::lng_business_about_chat_links(),
 				PremiumFeature::ChatLinks,
-				true,
 			},
 		},
 		{
@@ -167,7 +166,6 @@ using Order = std::vector<QString>;
 				tr::lng_premium_summary_subtitle_filter_tags(),
 				tr::lng_premium_summary_about_filter_tags(),
 				PremiumFeature::FilterTags,
-				true,
 			},
 		},
 	};
@@ -526,11 +524,7 @@ void Business::setupContent() {
 
 		const auto session = &_controller->session();
 		{
-			const auto arrow = Ui::Text::SingleCustomEmoji(
-				session->data().customEmojiManager().registerInternalEmoji(
-					st::topicButtonArrow,
-					st::channelEarnLearnArrowMargins,
-					true));
+			const auto arrow = Ui::Text::IconEmoji(&st::textMoreIconEmoji);
 			inner->add(object_ptr<Ui::DividerLabel>(
 				inner,
 				Ui::CreateLabelWithCustomEmoji(
@@ -547,7 +541,7 @@ void Business::setupContent() {
 							return Ui::Text::Link(text, url);
 						}),
 						Ui::Text::RichLangValue),
-					{ .session = session },
+					Core::TextContext({ .session = session }),
 					st::boxDividerLabel),
 				st::defaultBoxDividerLabelPadding,
 				RectPart::Top | RectPart::Bottom));

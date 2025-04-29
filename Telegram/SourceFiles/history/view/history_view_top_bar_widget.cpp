@@ -274,7 +274,9 @@ void TopBarWidget::refreshLang() {
 }
 
 void TopBarWidget::call() {
-	if (const auto peer = _activeChat.key.peer()) {
+	if (_controller->showFrozenError()) {
+		return;
+	} else if (const auto peer = _activeChat.key.peer()) {
 		if (const auto user = peer->asUser()) {
 			Core::App().calls().startOutgoingCall(user, false);
 		}
@@ -282,7 +284,9 @@ void TopBarWidget::call() {
 }
 
 void TopBarWidget::groupCall() {
-	if (const auto peer = _activeChat.key.peer()) {
+	if (_controller->showFrozenError()) {
+		return;
+	} else if (const auto peer = _activeChat.key.peer()) {
 		if (HasGroupCallMenu(peer)) {
 			showGroupCallMenu(peer);
 		} else {

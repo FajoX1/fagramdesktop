@@ -901,10 +901,10 @@ rpl::producer<uint64> AddCurrencyAction(
 				.append(QChar(' '))
 				.append(Info::ChannelEarn::MajorPart(balance))
 				.append(Info::ChannelEarn::MinorPart(balance)),
-			Core::MarkedTextContext{
+			Core::TextContext({
 				.session = &user->session(),
-				.customEmojiRepaint = [=] { name->update(); },
-			});
+				.repaint = [=] { name->update(); },
+			}));
 		name->resizeToNaturalWidth(available);
 		name->moveToRight(st::settingsButtonRightSkip, st.padding.top());
 	}, name->lifetime());
@@ -974,10 +974,10 @@ rpl::producer<StarsAmount> AddCreditsAction(
 			base::duplicate(icon)
 				.append(QChar(' '))
 				.append(Lang::FormatStarsAmountDecimal(balance)),
-			Core::MarkedTextContext{
+			Core::TextContext({
 				.session = &user->session(),
-				.customEmojiRepaint = [=] { name->update(); },
-			});
+				.repaint = [=] { name->update(); },
+			}));
 		name->resizeToNaturalWidth(available);
 		name->moveToRight(st::settingsButtonRightSkip, st.padding.top());
 	}, name->lifetime());
@@ -1763,25 +1763,28 @@ object_ptr<Ui::RpWidget> DetailsFiller::setupPersonalChannel(
 			const auto preview = Ui::CreateChild<Ui::RpWidget>(line);
 			auto &lifetime = preview->lifetime();
 			using namespace Dialogs::Ui;
-			const auto previewView = lifetime.make_state<MessageView>();
-			preview->resize(0, st::infoLabeled.style.font->height);
-			const auto prepare = [previewView, preview](
-					not_null<HistoryItem*> item) {
-				previewView->prepare(
-					item,
-					nullptr,
-					[=] { preview->update(); },
-					{},
-					[]{});
+			struct State {
+				MessageView view;
+				HistoryItem *item = nullptr;
+				rpl::lifetime lifetime;
 			};
-			if (!previewView->dependsOn(item)) {
-				prepare(item);
-			}
+			const auto state = lifetime.make_state<State>();
+			state->item = item;
+			item->history()->session().changes().realtimeMessageUpdates(
+				Data::MessageUpdate::Flag::Destroyed
+			) | rpl::start_with_next([=](const Data::MessageUpdate &update) {
+				if (update.item == state->item) {
+					state->lifetime.destroy();
+					state->item = nullptr;
+					preview->update();
+				}
+			}, state->lifetime);
+
+			preview->resize(0, st::infoLabeled.style.font->height);
 			preview->paintRequest(
-			) | rpl::start_with_next([=, fullId = item->fullId()](
-					const QRect &rect) {
+			) | rpl::start_with_next([=] {
 				auto p = Painter(preview);
-				const auto item = user->session().data().message(fullId);
+				const auto item = state->item;
 				if (!item) {
 					p.setPen(st::infoPersonalChannelDateLabel.textFg);
 					p.setBrush(Qt::NoBrush);
@@ -1792,22 +1795,14 @@ object_ptr<Ui::RpWidget> DetailsFiller::setupPersonalChannel(
 						style::al_left);
 					return;
 				}
-				if (previewView->prepared(item, nullptr)) {
-					previewView->paint(p, preview->rect(), {
-						.st = &st::defaultDialogRow,
-						.currentBg = st::boxBg->b,
-					});
-				} else if (!previewView->dependsOn(item)) {
-					p.setPen(st::infoPersonalChannelDateLabel.textFg);
-					p.setBrush(Qt::NoBrush);
-					p.setFont(st::infoPersonalChannelDateLabel.style.font);
-					p.drawText(
-						preview->rect(),
-						tr::lng_contacts_loading(tr::now),
-						style::al_left);
-					prepare(item);
-					preview->update();
+				if (!state->view.prepared(item, nullptr)) {
+					const auto repaint = [=] { preview->update(); };
+					state->view.prepare(item, nullptr, repaint, {});
 				}
+				state->view.paint(p, preview->rect(), {
+					.st = &st::defaultDialogRow,
+					.currentBg = st::boxBg->b,
+				});
 			}, preview->lifetime());
 
 			line->sizeValue() | rpl::filter_size(
@@ -2406,11 +2401,17 @@ void ActionsFiller::addShareContactAction(not_null<UserData*> user) {
 
 void ActionsFiller::addEditContactAction(not_null<UserData*> user) {
 	const auto controller = _controller->parentController();
+	const auto edit = [=] {
+		if (controller->showFrozenError()) {
+			return;
+		}
+		controller->window().show(Box(EditContactBox, controller, user));
+	};
 	AddActionButton(
 		_wrap,
 		tr::lng_info_edit_contact(),
 		IsContactValue(user),
-		[=] { controller->window().show(Box(EditContactBox, controller, user)); },
+		edit,
 		&st::infoIconEdit);
 }
 

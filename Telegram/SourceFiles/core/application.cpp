@@ -87,6 +87,7 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 #include "base/qthelp_url.h"
 #include "boxes/premium_limits_box.h"
 #include "ui/boxes/confirm_box.h"
+#include "ui/controls/location_picker.h"
 #include "styles/style_window.h"
 
 #include <QtCore/QStandardPaths>
@@ -94,6 +95,8 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 #include <QtGui/QGuiApplication>
 #include <QtGui/QScreen>
 #include <QtGui/QWindow>
+
+#include <ksandbox.h>
 
 namespace Core {
 namespace {
@@ -325,6 +328,8 @@ void Application::run() {
 
 	// Check now to avoid re-entrance later.
 	[[maybe_unused]] const auto ivSupported = Iv::ShowButton();
+	[[maybe_unused]] const auto lpAvailable = Ui::LocationPicker::Available(
+		{});
 
 	_windows.emplace(nullptr, std::make_unique<Window::Controller>());
 	setLastActiveWindow(_windows.front().second.get());

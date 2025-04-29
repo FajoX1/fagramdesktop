@@ -10,6 +10,7 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 #include "fa/settings/fa_settings.h"
 
 #include "core/ui_integration.h" // Core::MarkedTextContext.
+#include "core/ui_integration.h" // TextContext
 #include "lang/lang_keys.h"
 #include "history/history.h"
 #include "history/history_item.h"
@@ -160,7 +161,7 @@ struct Poll::Answer {
 	void fillData(
 		not_null<PollData*> poll,
 		const PollAnswer &original,
-		Core::MarkedTextContext context);
+		Ui::Text::MarkedContext context);
 
 	Ui::Text::String text;
 	QByteArray option;
@@ -208,7 +209,7 @@ Poll::Answer::Answer() : text(st::msgMinWidth / 2) {
 void Poll::Answer::fillData(
 		not_null<PollData*> poll,
 		const PollAnswer &original,
-		Core::MarkedTextContext context) {
+		Ui::Text::MarkedContext context) {
 	chosen = original.chosen;
 	correct = poll->quiz() ? original.correct : chosen;
 	if (!text.isEmpty() && text.toTextWithEntities() == original.text) {
@@ -398,11 +399,11 @@ void Poll::updateTexts() {
 			st::historyPollQuestionStyle,
 			_poll->question,
 			options,
-			Core::MarkedTextContext{
+			Core::TextContext({
 				.session = &_poll->session(),
-				.customEmojiRepaint = [=] { repaint(); },
+				.repaint = [=] { repaint(); },
 				.customEmojiLoopLimit = 2,
-			});
+			}));
 	}
 	if (_flags != _poll->flags() || _subtitle.isEmpty()) {
 		using Flag = PollData::Flag;
@@ -527,11 +528,11 @@ void Poll::updateRecentVoters() {
 }
 
 void Poll::updateAnswers() {
-	const auto context = Core::MarkedTextContext{
+	const auto context = Core::TextContext({
 		.session = &_poll->session(),
-		.customEmojiRepaint = [=] { repaint(); },
+		.repaint = [=] { repaint(); },
 		.customEmojiLoopLimit = 2,
-	};
+	});
 	const auto changed = !ranges::equal(
 		_answers,
 		_poll->answers,

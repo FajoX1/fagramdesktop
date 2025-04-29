@@ -23,6 +23,7 @@ menuIconStickers: icon {{ "menu/stickers", menuIconColor }};
 menuIconEmoji: icon {{ "menu/emoji", menuIconColor }};
 menuIconCancel: icon {{ "menu/cancel", menuIconColor }};
 menuIconShowInChat: icon {{ "menu/show_in_chat", menuIconColor }};
+menuIconStealth: icon {{ "menu/stealth", menuIconColor }};
 menuIconGif: icon {{ "menu/gif", menuIconColor }};
 menuIconShowInFolder: icon {{ "menu/show_in_folder", menuIconColor }};
 menuIconDownload: icon {{ "menu/download", menuIconColor }};
@@ -178,6 +179,7 @@ menuIconUnique: icon {{ "menu/unique", menuIconColor }};
 menuIconNftWear: icon {{ "menu/nft_wear", menuIconColor }};
 menuIconNftTakeOff: icon {{ "menu/nft_takeoff", menuIconColor }};
 menuIconShortcut: icon {{ "menu/shortcut", menuIconColor }};
+menuIconHourglass: icon {{ "menu/hourglass", menuIconColor }};
 
 menuIconTTLAny: icon {{ "menu/auto_delete_plain", menuIconColor }};
 menuIconTTLAnyTextPosition: point(11px, 22px);

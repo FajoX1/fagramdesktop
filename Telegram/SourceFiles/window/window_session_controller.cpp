@@ -51,6 +51,7 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 #include "data/data_chat_filters.h"
 #include "data/data_replies_list.h"
 #include "data/data_peer_values.h"
+#include "data/data_premium_limits.h"
 #include "data/data_web_page.h"
 #include "passport/passport_form_controller.h"
 #include "chat_helpers/tabbed_selector.h"
@@ -174,12 +175,6 @@ private:
 
 [[nodiscard]] Ui::CollectibleDetails PrepareCollectibleDetails(
 		not_null<Main::Session*> session) {
-	const auto makeContext = [=] {
-		return Core::MarkedTextContext{
-			.session = session,
-			.customEmojiRepaint = [] {},
-		};
-	};
 	return {
 		.tonEmoji = Ui::Text::SingleCustomEmoji(
 			session->data().customEmojiManager().registerInternalEmoji(
@@ -188,7 +183,7 @@ private:
 					st::collectibleInfo.textFg->c),
 				st::collectibleInfoTonMargins,
 				true)),
-		.tonEmojiContext = makeContext,
+		.tonEmojiContext = Core::TextContext({ .session = session }),
 	};
 }
 
@@ -369,6 +364,10 @@ SessionNavigation::~SessionNavigation() = default;
 
 Main::Session &SessionNavigation::session() const {
 	return *_session;
+}
+
+bool SessionNavigation::showFrozenError() {
+	return uiShow()->showFrozenError();
 }
 
 void SessionNavigation::showPeerByLink(const PeerByLinkInfo &info) {
@@ -1102,6 +1101,8 @@ void SessionNavigation::showRepliesForMessage(
 		if (error.type() == u"CHANNEL_PRIVATE"_q
 			|| error.type() == u"USER_BANNED_IN_CHANNEL"_q) {
 			showToast(tr::lng_group_not_accessible(tr::now));
+		} else if (error.type() == u"MSG_ID_INVALID"_q) {
+			showToast(tr::lng_message_not_found(tr::now));
 		}
 	}).send();
 }
@@ -2547,7 +2548,10 @@ void SessionController::showInNewWindow(
 
 void SessionController::toggleChooseChatTheme(
 		not_null<PeerData*> peer,
-		std::optional<bool> show) const {
+		std::optional<bool> show) {
+	if (showFrozenError()) {
+		return;
+	}
 	content()->toggleChooseChatTheme(peer, show);
 }
 
@@ -3255,6 +3259,36 @@ std::shared_ptr<ChatHelpers::Show> SessionController::uiShow() {
 
 SessionController::~SessionController() {
 	resetFakeUnreadWhileOpened();
+}
+
+bool CheckAndJumpToNearChatsFilter(
+		not_null<SessionController*> controller,
+		bool isNext,
+		bool jump) {
+	const auto id = controller->activeChatsFilterCurrent();
+	const auto session = &controller->session();
+	const auto list = &session->data().chatsFilters().list();
+	const auto index = int(ranges::find(
+		*list,
+		id,
+		&Data::ChatFilter::id
+	) - begin(*list));
+	if (index == list->size() && id != 0) {
+		return false;
+	}
+	const auto changed = index + (isNext ? 1 : -1);
+	if (changed >= int(list->size()) || changed < 0) {
+		return false;
+	}
+	if (changed > Data::PremiumLimits(session).dialogFiltersCurrent()) {
+		return false;
+	}
+	if (jump) {
+		controller->setActiveChatsFilter((changed >= 0)
+			? (*list)[changed].id()
+			: 0);
+	}
+	return true;
 }
 
 } // namespace Window

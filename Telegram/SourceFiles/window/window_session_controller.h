@@ -180,6 +180,8 @@ public:
 
 	[[nodiscard]] Main::Session &session() const;
 
+	bool showFrozenError();
+
 	virtual void showSection(
 		std::shared_ptr<SectionMemento> memento,
 		const SectionShow &params = SectionShow()) = 0;
@@ -525,7 +527,7 @@ public:
 
 	void toggleChooseChatTheme(
 		not_null<PeerData*> peer,
-		std::optional<bool> show = std::nullopt) const;
+		std::optional<bool> show = std::nullopt);
 	void finishChatThemeEdit(not_null<PeerData*> peer);
 
 	[[nodiscard]] bool mainSectionShown() const {
@@ -756,5 +758,10 @@ void ActivateWindow(not_null<SessionController*> controller);
 [[nodiscard]] Fn<bool()> PausedIn(
 	not_null<SessionController*> controller,
 	GifPauseReason level);
+
+bool CheckAndJumpToNearChatsFilter(
+	not_null<SessionController*> controller,
+	bool isNext,
+	bool jump);
 
 } // namespace Window

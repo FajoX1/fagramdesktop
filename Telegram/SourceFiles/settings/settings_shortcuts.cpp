@@ -21,12 +21,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_menu_icons.h"
 #include "styles/style_settings.h"
 
-#include <qpa/qplatformintegration.h>
-#include <private/qguiapplication_p.h>
-
-#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
-#include <qpa/qplatformkeymapper.h>
-#endif
+#include <private/qkeymapper_p.h>
 
 namespace Settings {
 namespace {
@@ -103,6 +98,7 @@ struct Labeled {
 		{ C::ArchiveChat, tr::lng_shortcuts_archive_chat() },
 		{ C::ShowScheduled, tr::lng_shortcuts_scheduled() },
 		{ C::ShowChatMenu, tr::lng_shortcuts_show_chat_menu() },
+		{ C::ShowChatPreview, tr::lng_shortcuts_show_chat_preview() },
 		separator,
 		{ C::JustSendMessage, tr::lng_shortcuts_just_send() },
 		{ C::SendSilentMessage, tr::lng_shortcuts_silent_send() },
@@ -388,7 +384,6 @@ struct Labeled {
 			}
 			const auto key = static_cast<QKeyEvent*>(e.get());
 			const auto m = key->modifiers();
-			const auto integration = QGuiApplicationPrivate::platformIntegration();
 			const auto k = key->key();
 			const auto clear = !m
 				&& (k == Qt::Key_Backspace || k == Qt::Key_Delete);
@@ -407,22 +402,18 @@ struct Labeled {
 			const auto r = [&] {
 				auto result = int(k);
 				if (m & Qt::ShiftModifier) {
+					const auto keys = QKeyMapper::possibleKeys(key);
+					for (const auto &possible : keys) {
 #if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
-					const auto mapper = integration->keyMapper();
-					const auto list = mapper->possibleKeyCombinations(key);
-					for (const auto &possible : list) {
 						if (possible.keyboardModifiers() == m) {
 							return int(possible.key());
 						}
-					}
 #else // Qt >= 6.7.0
-					const auto keys = integration->possibleKeys(key);
-					for (const auto possible : keys) {
 						if (possible > int(m)) {
 							return possible - int(m);
 						}
-					}
 #endif // Qt < 6.7.0
+					}
 				}
 				return result;
 			}();

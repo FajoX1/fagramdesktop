@@ -1510,6 +1510,9 @@ void OverlayWidget::refreshCaptionGeometry() {
 	if (_caption.isEmpty() && (!_stories || !_stories->repost())) {
 		_captionRect = QRect();
 		return;
+	} else if (_fullScreenVideo) {
+		_captionRect = QRect();
+		return;
 	}
 
 	if (_groupThumbs && _groupThumbs->hiding()) {
@@ -3343,12 +3346,12 @@ void OverlayWidget::refreshCaption() {
 		}
 		update(captionGeometry());
 	};
-	const auto context = Core::MarkedTextContext{
+	const auto context = Core::TextContext({
 		.session = (_stories
 			? _storiesSession
 			: &_message->history()->session()),
-		.customEmojiRepaint = captionRepaint,
-	};
+		.repaint = captionRepaint,
+	});
 	_caption.setMarkedText(
 		st::mediaviewCaptionStyle,
 		(base.isEmpty()

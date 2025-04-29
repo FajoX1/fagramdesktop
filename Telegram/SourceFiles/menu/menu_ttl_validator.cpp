@@ -13,6 +13,7 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 #include "data/data_peer.h"
 #include "data/data_user.h"
 #include "lang/lang_keys.h"
+#include "main/session/session_show.h"
 #include "main/main_session.h"
 #include "menu/menu_ttl.h"
 #include "ui/layers/generic_box.h"
@@ -113,7 +114,8 @@ bool TTLValidator::can() const {
 			&& !_peer->isSelf()
 			&& !_peer->isNotificationsUser()
 			&& !_peer->asUser()->isInaccessible()
-			&& (!_peer->asUser()->meRequiresPremiumToWrite()
+			&& !_peer->asUser()->starsPerMessage()
+			&& (!_peer->asUser()->requiresPremiumToWrite()
 				|| _peer->session().premium()))
 		|| (_peer->isChat()
 			&& _peer->asChat()->canEditInformation()
@@ -132,6 +134,9 @@ const style::icon *TTLValidator::icon() const {
 }
 
 void TTLValidator::showBox() const {
+	if (Main::MakeSessionShow(_show, &_peer->session())->showFrozenError()) {
+		return;
+	}
 	_show->showBox(Box(TTLBox, createArgs()));
 }
 
