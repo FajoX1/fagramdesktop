@@ -212,6 +212,7 @@ RecentRow::RecentRow(not_null<PeerData*> peer)
 					tr::lng_profile_open_app_short(tr::now));
 			}
 		}
+	}
 	return nullptr;
 }()) {
 	if (peer->isSelf() || peer->isRepliesChat() || peer->isVerifyCodes()) {

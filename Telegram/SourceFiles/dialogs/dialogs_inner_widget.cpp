@@ -1386,6 +1386,7 @@ void InnerWidget::fillRightButton(
 				return &(it->second);
 			}
 		}
+	}
 	return nullptr;
 }
 
