@@ -1,7 +1,7 @@
-1.1.9 (x.04.2025)
+1.1.9 (30.04.2025)
 
 - Fix translation
-- Using domain fagram.app
+- Use domain fagram.app
 - Updated to tdesktop v5.13.1
 
 1.1.8 (05.03.2025)
