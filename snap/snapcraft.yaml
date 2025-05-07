@@ -12,7 +12,7 @@ apps:
     command-chain:
       - bin/desktop-launch
     common-id: org.fagram.desktop
-    desktop: usr/share/applications/org.fagram.desktop.desktop
+    desktop: usr/share/applications/org.fagram.desktop
     autostart: fagram_fagram.desktop
     plugs:
       - alsa
@@ -81,7 +81,7 @@ parts:
     plugin: cmake
     source: .
     source-type: git
-    parse-info: [usr/share/metainfo/org.fagram.desktop.metainfo.xml]
+    parse-info: [usr/share/metainfo/org.fagram.metainfo.xml]
     build-environment:
       - LD_LIBRARY_PATH: $CRAFT_STAGE/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
       - LDFLAGS: ${LDFLAGS:+$LDFLAGS} -s

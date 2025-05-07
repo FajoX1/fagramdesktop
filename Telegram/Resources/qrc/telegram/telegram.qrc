@@ -54,7 +54,7 @@
   </qresource>
   <qresource prefix="/misc">
     <file alias="default_shortcuts-custom.json">../../default_shortcuts-custom.json</file>
-    <file alias="org.fagram.desktop.desktop">../../../../lib/xdg/org.fagram.desktop.desktop</file>
+    <file alias="org.fagram.desktop">../../../../lib/xdg/org.fagram.desktop</file>
   </qresource>
   <qresource prefix="/fa_lang">
     <file alias="en.json">../../langs/fa/en.json</file>

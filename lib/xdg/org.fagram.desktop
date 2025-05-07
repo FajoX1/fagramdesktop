@@ -1,5 +1,5 @@
 [Desktop Entry]
-Name=FAgram Desktop
+Name=FAgram
 Comment=Telegram client based on Telegram Desktop
 TryExec=fagram
 Exec=fagram -- %u

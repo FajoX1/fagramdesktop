@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <component type="desktop">
-    <id>org.fagram.desktop</id>
+    <id>org.fagram</id>
     <metadata_license>CC0-1.0</metadata_license>
     <project_license>GPL-3.0</project_license>
     <name>FAgram Desktop</name>
@@ -93,10 +93,10 @@
         <content_attribute id="money-gambling">none</content_attribute>
         <content_attribute id="money-advertising">moderate</content_attribute>
     </content_rating>
-    <launchable type="desktop-id">org.fagram.desktop.desktop</launchable>
+    <launchable type="desktop-id">org.fagram.desktop</launchable>
     <provides>
         <binary>fagram</binary>
-        <dbus type="session">org.fagram.desktop</dbus>
+        <dbus type="session">org.fagram</dbus>
         <mediatype>x-scheme-handler/tg</mediatype>
         <mediatype>x-scheme-handler/tonsite</mediatype>
     </provides>
