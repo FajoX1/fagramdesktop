@@ -48,6 +48,7 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 #include "inline_bots/inline_bot_result.h"
 #include "inline_bots/inline_bot_confirm_prepared.h"
 #include "inline_bots/inline_bot_downloads.h"
+#include "inline_bots/inline_bot_storage.h"
 #include "iv/iv_instance.h"
 #include "lang/lang_keys.h"
 #include "main/main_app_config.h"
@@ -1458,7 +1459,8 @@ bool WebViewInstance::botHandleLocalUri(QString uri, bool keepOpen) {
 	if (Core::InternalPassportLink(local)) {
 		return true;
 	} else if (!local.startsWith(u"tg://"_q, Qt::CaseInsensitive)
-		&& !local.startsWith(u"tonsite://"_q, Qt::CaseInsensitive)) {
+		&& !local.startsWith(u"tonsite://"_q, Qt::CaseInsensitive)
+		&& !local.startsWith(u"ton://"_q, Qt::CaseInsensitive)) {
 		return false;
 	}
 	const auto bot = _bot;
@@ -1502,7 +1504,7 @@ void WebViewInstance::botHandleInvoice(QString slug) {
 		}
 	};
 	Payments::CheckoutProcess::Start(
-		&_bot->session(),
+		_session,
 		slug,
 		reactivate,
 		nonPanelPaymentFormFactory(reactivate));
@@ -1696,6 +1698,20 @@ void WebViewInstance::botAllowWriteAccess(Fn<void(bool allowed)> callback) {
 	}).fail([=] {
 		callback(false);
 	}).send();
+}
+
+bool WebViewInstance::botStorageWrite(
+		QString key,
+		std::optional<QString> value) {
+	return _session->attachWebView().storage().write(_bot->id, key, value);
+}
+
+std::optional<QString> WebViewInstance::botStorageRead(QString key) {
+	return _session->attachWebView().storage().read(_bot->id, key);
+}
+
+void WebViewInstance::botStorageClear() {
+	_session->attachWebView().storage().clear(_bot->id);
 }
 
 void WebViewInstance::botRequestEmojiStatusAccess(
@@ -1955,20 +1971,20 @@ void WebViewInstance::botDownloadFile(
 			callback(false);
 			return;
 		}
-		_bot->session().attachWebView().downloads().start({
+		_session->attachWebView().downloads().start({
 			.bot = _bot,
 			.url = request.url,
 			.path = path,
 		});
 		callback(true);
 	};
-	_bot->session().api().request(MTPbots_CheckDownloadFileParams(
+	_session->api().request(MTPbots_CheckDownloadFileParams(
 		_bot->inputUser,
 		MTP_string(request.name),
 		MTP_string(request.url)
 	)).done([=] {
 		_panel->showBox(Box(DownloadFileBox, DownloadBoxArgs{
-			.session = &_bot->session(),
+			.session = _session,
 			.bot = _bot->name(),
 			.name = base::FileNameFromUserString(request.name),
 			.url = request.url,
@@ -2018,7 +2034,7 @@ void WebViewInstance::botOpenPrivacyPolicy() {
 	};
 	const auto openUrl = [=](const QString &url) {
 		Core::App().iv().openWithIvPreferred(
-			&_bot->session(),
+			_session,
 			url,
 			makeOtherContext(false));
 	};
@@ -2092,6 +2108,7 @@ std::shared_ptr<Main::SessionShow> WebViewInstance::uiShow() {
 AttachWebView::AttachWebView(not_null<Main::Session*> session)
 : _session(session)
 , _downloads(std::make_unique<Downloads>(session))
+, _storage(std::make_unique<Storage>(session))
 , _refreshTimer([=] { requestBots(); }) {
 	_refreshTimer.callEach(kRefreshBotsTimeout);
 }

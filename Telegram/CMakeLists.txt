@@ -26,7 +26,6 @@ get_filename_component(res_loc Resources REALPATH)
 include(cmake/telegram_options.cmake)
 include(cmake/lib_ffmpeg.cmake)
 include(cmake/lib_stripe.cmake)
-include(cmake/lib_tgvoip.cmake)
 include(cmake/lib_tgcalls.cmake)
 include(cmake/lib_prisma.cmake)
 include(cmake/td_export.cmake)
@@ -34,6 +33,7 @@ include(cmake/td_iv.cmake)
 include(cmake/td_lang.cmake)
 include(cmake/td_mtproto.cmake)
 include(cmake/td_scheme.cmake)
+include(cmake/td_tde2e.cmake)
 include(cmake/td_ui.cmake)
 include(cmake/generate_appdata_changelog.cmake)
 
@@ -47,17 +47,15 @@ if (WIN32)
         platform/win/windows_quiethours.idl
         platform/win/windows_toastactivator.idl
     )
-
-    nuget_add_winrt(Telegram)
 endif()
 
 set_target_properties(Telegram PROPERTIES AUTOMOC ON)
 
 target_link_libraries(Telegram
 PRIVATE
-    tdesktop::lib_tgcalls_legacy
+    # tdesktop::lib_tgcalls_legacy
     tdesktop::lib_tgcalls
-    tdesktop::lib_tgvoip
+    # tdesktop::lib_tgvoip
 
     # Order in this list defines the order of include paths in command line.
     # We need to place desktop-app::external_minizip this early to have its
@@ -71,6 +69,7 @@ PRIVATE
     tdesktop::td_lang
     tdesktop::td_mtproto
     tdesktop::td_scheme
+    tdesktop::td_tde2e
     tdesktop::td_ui
     desktop-app::lib_webrtc
     desktop-app::lib_base
@@ -215,8 +214,8 @@ PRIVATE
     boxes/peers/edit_contact_box.h
     boxes/peers/edit_forum_topic_box.cpp
     boxes/peers/edit_forum_topic_box.h
-    boxes/peers/edit_linked_chat_box.cpp
-    boxes/peers/edit_linked_chat_box.h
+    boxes/peers/edit_discussion_link_box.cpp
+    boxes/peers/edit_discussion_link_box.h
     boxes/peers/edit_members_visible.cpp
     boxes/peers/edit_members_visible.h
     boxes/peers/edit_participant_box.cpp
@@ -396,6 +395,8 @@ PRIVATE
     calls/calls_video_bubble.h
     calls/calls_video_incoming.cpp
     calls/calls_video_incoming.h
+    calls/calls_window.cpp
+    calls/calls_window.h
     chat_helpers/compose/compose_features.h
     chat_helpers/compose/compose_show.cpp
     chat_helpers/compose/compose_show.h
@@ -445,6 +446,8 @@ PRIVATE
     chat_helpers/ttl_media_layer_widget.h
     core/application.cpp
     core/application.h
+    core/bank_card_click_handler.cpp
+    core/bank_card_click_handler.h
     core/base_integration.cpp
     core/base_integration.h
     core/changelogs.cpp
@@ -498,6 +501,8 @@ PRIVATE
     data/components/factchecks.h
     data/components/location_pickers.cpp
     data/components/location_pickers.h
+    data/components/promo_suggestions.cpp
+    data/components/promo_suggestions.h
     data/components/recent_peers.cpp
     data/components/recent_peers.h
     data/components/scheduled_messages.cpp
@@ -692,6 +697,8 @@ PRIVATE
     dialogs/dialogs_search_from_controllers.h
     dialogs/dialogs_search_tags.cpp
     dialogs/dialogs_search_tags.h
+    dialogs/dialogs_top_bar_suggestion.cpp
+    dialogs/dialogs_top_bar_suggestion.h
     dialogs/dialogs_widget.cpp
     dialogs/dialogs_widget.h
     editor/color_picker.cpp
@@ -857,6 +864,8 @@ PRIVATE
     history/view/history_view_bottom_info.h
     history/view/history_view_chat_preview.cpp
     history/view/history_view_chat_preview.h
+    history/view/history_view_chat_section.cpp
+    history/view/history_view_chat_section.h
     history/view/history_view_contact_status.cpp
     history/view/history_view_contact_status.h
     history/view/history_view_context_menu.cpp
@@ -891,8 +900,6 @@ PRIVATE
     history/view/history_view_pinned_tracker.h
     history/view/history_view_quick_action.cpp
     history/view/history_view_quick_action.h
-    history/view/history_view_replies_section.cpp
-    history/view/history_view_replies_section.h
     history/view/history_view_reply.cpp
     history/view/history_view_reply.h
     history/view/history_view_requests_bar.cpp
@@ -909,8 +916,8 @@ PRIVATE
     history/view/history_view_sponsored_click_handler.h
     history/view/history_view_sticker_toast.cpp
     history/view/history_view_sticker_toast.h
-    history/view/history_view_sublist_section.cpp
-    history/view/history_view_sublist_section.h
+    history/view/history_view_subsection_tabs.cpp
+    history/view/history_view_subsection_tabs.h
     history/view/history_view_text_helper.cpp
     history/view/history_view_text_helper.h
     history/view/history_view_transcribe_button.cpp
@@ -1107,6 +1114,8 @@ PRIVATE
     inline_bots/inline_bot_result.h
     inline_bots/inline_bot_send_data.cpp
     inline_bots/inline_bot_send_data.h
+    inline_bots/inline_bot_storage.cpp
+    inline_bots/inline_bot_storage.h
     inline_bots/inline_results_inner.cpp
     inline_bots/inline_results_inner.h
     inline_bots/inline_results_widget.cpp
@@ -1455,12 +1464,18 @@ PRIVATE
     settings/cloud_password/settings_cloud_password_hint.h
     settings/cloud_password/settings_cloud_password_input.cpp
     settings/cloud_password/settings_cloud_password_input.h
+    settings/cloud_password/settings_cloud_password_login_email.cpp
+    settings/cloud_password/settings_cloud_password_login_email.h
+    settings/cloud_password/settings_cloud_password_login_email_confirm.cpp
+    settings/cloud_password/settings_cloud_password_login_email_confirm.h
     settings/cloud_password/settings_cloud_password_manage.cpp
     settings/cloud_password/settings_cloud_password_manage.h
     settings/cloud_password/settings_cloud_password_start.cpp
     settings/cloud_password/settings_cloud_password_start.h
     settings/cloud_password/settings_cloud_password_step.cpp
     settings/cloud_password/settings_cloud_password_step.h
+    settings/cloud_password/settings_cloud_password_validate_icon.cpp
+    settings/cloud_password/settings_cloud_password_validate_icon.h
     settings/settings_active_sessions.cpp
     settings/settings_active_sessions.h
     settings/settings_advanced.cpp
@@ -1566,6 +1581,8 @@ PRIVATE
     support/support_preload.h
     support/support_templates.cpp
     support/support_templates.h
+    tde2e/tde2e_integration.cpp
+    tde2e/tde2e_integration.h
     ui/boxes/edit_invite_link_session.cpp
     ui/boxes/edit_invite_link_session.h
     ui/boxes/peer_qr_box.cpp
@@ -1760,6 +1777,10 @@ if (WIN32)
     # COMMENT
     #     $<IF:${release},"Appending compatibility manifest.","Finalizing build.">
     # )
+
+    if (QT_VERSION LESS 6)
+        target_link_libraries(Telegram PRIVATE desktop-app::win_directx_helper)
+    endif()
 elseif (APPLE)
     if (NOT DESKTOP_APP_USE_PACKAGED)
         target_link_libraries(Telegram PRIVATE desktop-app::external_iconv)
@@ -1873,11 +1894,7 @@ else()
         set(bundle_identifier "org.fagram")
     endif()
     set(bundle_entitlements "Telegram.entitlements")
-    if (LINUX AND DESKTOP_APP_USE_PACKAGED)
-        set(output_name "fagram")
-    else()
-        set(output_name "fagram")
-    endif()
+    set(output_name "fagram")
 endif()
 
 if (CMAKE_GENERATOR STREQUAL Xcode)
@@ -1919,8 +1936,9 @@ PRIVATE
     G_LOG_DOMAIN="Telegram"
 )
 
+get_property(is_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
 if (APPLE
-    OR "${CMAKE_GENERATOR}" STREQUAL "Ninja Multi-Config"
+    OR is_multi_config
     OR NOT CMAKE_EXECUTABLE_SUFFIX STREQUAL ""
     OR NOT "${output_name}" STREQUAL "fagram")
     set(output_folder ${CMAKE_BINARY_DIR})
@@ -1937,66 +1955,8 @@ if (MSVC)
     )
     target_link_options(Telegram
     PRIVATE
-        /DELAYLOAD:secur32.dll
-        /DELAYLOAD:winmm.dll
-        /DELAYLOAD:ws2_32.dll
-        /DELAYLOAD:user32.dll
-        /DELAYLOAD:gdi32.dll
         /DELAYLOAD:advapi32.dll
-        /DELAYLOAD:shell32.dll
-        /DELAYLOAD:ole32.dll
-        /DELAYLOAD:oleaut32.dll
-        /DELAYLOAD:shlwapi.dll
-        /DELAYLOAD:iphlpapi.dll
-        /DELAYLOAD:gdiplus.dll
-        /DELAYLOAD:version.dll
-        /DELAYLOAD:dwmapi.dll
-        /DELAYLOAD:uxtheme.dll
-        /DELAYLOAD:crypt32.dll
-        /DELAYLOAD:bcrypt.dll
-        /DELAYLOAD:netapi32.dll
-        /DELAYLOAD:imm32.dll
-        /DELAYLOAD:userenv.dll
-        /DELAYLOAD:wtsapi32.dll
-        /DELAYLOAD:propsys.dll
     )
-    if (QT_VERSION GREATER 6)
-        if (NOT build_winarm)
-            target_link_options(Telegram PRIVATE
-                /DELAYLOAD:API-MS-Win-EventLog-Legacy-l1-1-0.dll
-            )
-        endif()
-
-        target_link_options(Telegram
-        PRIVATE
-            /DELAYLOAD:API-MS-Win-Core-Console-l1-1-0.dll
-            /DELAYLOAD:API-MS-Win-Core-Fibers-l2-1-0.dll
-            /DELAYLOAD:API-MS-Win-Core-Fibers-l2-1-1.dll
-            /DELAYLOAD:API-MS-Win-Core-File-l1-1-0.dll
-            /DELAYLOAD:API-MS-Win-Core-LibraryLoader-l1-2-0.dll
-            /DELAYLOAD:API-MS-Win-Core-Localization-l1-2-0.dll
-            /DELAYLOAD:API-MS-Win-Core-Memory-l1-1-0.dll
-            /DELAYLOAD:API-MS-Win-Core-Memory-l1-1-1.dll
-            /DELAYLOAD:API-MS-Win-Core-ProcessThreads-l1-1-0.dll
-            /DELAYLOAD:API-MS-Win-Core-Synch-l1-2-0.dll # Synchronization.lib
-            /DELAYLOAD:API-MS-Win-Core-SysInfo-l1-1-0.dll
-            /DELAYLOAD:API-MS-Win-Core-Timezone-l1-1-0.dll
-            /DELAYLOAD:API-MS-Win-Core-WinRT-l1-1-0.dll
-            /DELAYLOAD:API-MS-Win-Core-WinRT-Error-l1-1-0.dll
-            /DELAYLOAD:API-MS-Win-Core-WinRT-String-l1-1-0.dll
-            /DELAYLOAD:API-MS-Win-Security-CryptoAPI-l1-1-0.dll
-            # /DELAYLOAD:API-MS-Win-Shcore-Scaling-l1-1-1.dll # We shadowed GetDpiForMonitor
-            /DELAYLOAD:authz.dll # Authz.lib
-            /DELAYLOAD:comdlg32.dll
-            /DELAYLOAD:dwrite.dll # DWrite.lib
-            /DELAYLOAD:dxgi.dll # DXGI.lib
-            /DELAYLOAD:d3d9.dll # D3D9.lib
-            /DELAYLOAD:d3d11.dll # D3D11.lib
-            /DELAYLOAD:d3d12.dll # D3D12.lib
-            /DELAYLOAD:setupapi.dll # SetupAPI.lib
-            /DELAYLOAD:winhttp.dll
-        )
-    endif()
 endif()
 
 target_prepare_qrc(Telegram)
@@ -2027,22 +1987,6 @@ if (NOT DESKTOP_APP_DISABLE_AUTOUPDATE AND NOT build_macstore AND NOT build_wins
             base/platform/win/base_windows_safe_library.h
         )
         target_include_directories(Updater PRIVATE ${lib_base_loc})
-        if (MSVC)
-            target_link_libraries(Updater
-            PRIVATE
-                delayimp
-            )
-            target_link_options(Updater
-            PRIVATE
-                /DELAYLOAD:user32.dll
-                /DELAYLOAD:advapi32.dll
-                /DELAYLOAD:shell32.dll
-                /DELAYLOAD:ole32.dll
-                /DELAYLOAD:shlwapi.dll
-            )
-        else()
-            target_link_options(Updater PRIVATE -municode)
-        endif()
     elseif (APPLE)
         add_custom_command(TARGET Updater
         PRE_LINK
@@ -2070,6 +2014,10 @@ if (NOT DESKTOP_APP_DISABLE_AUTOUPDATE AND NOT build_macstore AND NOT build_wins
             desktop-app::external_auto_updates
             desktop-app::external_openssl
         )
+
+        if (DESKTOP_APP_USE_PACKAGED)
+            target_compile_definitions(Packer PRIVATE PACKER_USE_PACKAGED)
+        endif()
 
         set_target_properties(Packer PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${output_folder})
     endif()

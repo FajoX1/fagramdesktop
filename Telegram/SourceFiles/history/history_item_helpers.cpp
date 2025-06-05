@@ -503,6 +503,8 @@ TimeId NewMessageDate(const Api::SendOptions &options) {
 PeerId NewMessageFromId(const Api::SendAction &action) {
 	return action.options.sendAs
 		? action.options.sendAs->id
+		: action.history->peer->amMonoforumAdmin()
+		? action.history->peer->monoforumBroadcast()->id
 		: action.history->peer->amAnonymous()
 		? PeerId()
 		: action.history->session().userPeerId();
@@ -915,6 +917,8 @@ MediaCheckResult CheckMessageMedia(const MTPMessageMedia &media) {
 [[nodiscard]] CallId CallIdFromInput(const MTPInputGroupCall &data) {
 	return data.match([&](const MTPDinputGroupCall &data) {
 		return data.vid().v;
+	}, [](const auto &) -> CallId {
+		Unexpected("slug/msg in CallIdFromInput.");
 	});
 }
 
@@ -1191,30 +1195,6 @@ void ShowTrialTranscribesToast(int left, TimeId until) {
 		.filter = filter,
 		.duration = kToastDuration,
 	});
-}
-
-void ClearMediaAsExpired(not_null<HistoryItem*> item) {
-	if (const auto media = item->media()) {
-		if (!media->ttlSeconds()) {
-			return;
-		}
-		if (const auto document = media->document()) {
-			item->applyEditionToHistoryCleared();
-			auto text = (document->isVideoFile()
-				? tr::lng_ttl_video_expired
-				: document->isVoiceMessage()
-				? tr::lng_ttl_voice_expired
-				: document->isVideoMessage()
-				? tr::lng_ttl_round_expired
-				: tr::lng_message_empty)(tr::now, Ui::Text::WithEntities);
-			item->updateServiceText(PreparedServiceText{ std::move(text) });
-		} else if (const auto photo = media->photo()) {
-			item->applyEditionToHistoryCleared();
-			item->updateServiceText(PreparedServiceText{
-				tr::lng_ttl_photo_expired(tr::now, Ui::Text::WithEntities)
-			});
-		}
-	}
 }
 
 int ItemsForwardSendersCount(const HistoryItemsList &list) {

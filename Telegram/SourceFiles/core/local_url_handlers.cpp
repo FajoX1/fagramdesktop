@@ -39,6 +39,7 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 #include "passport/passport_form_controller.h"
 #include "ui/text/text_utilities.h"
 #include "ui/toast/toast.h"
+#include "ui/vertical_list.h"
 #include "data/components/credits.h"
 #include "data/data_birthday.h"
 #include "data/data_channel.h"
@@ -848,6 +849,7 @@ bool OpenMediaTimestamp(
 				document,
 				context,
 				context ? context->topicRootId() : MsgId(0),
+				context ? context->sublistPeerId() : PeerId(0),
 				false,
 				time));
 		} else if (document->isSong() || document->isVoiceMessage()) {
@@ -938,10 +940,41 @@ bool ShowEditBirthday(
 				: (u"Error: "_q + error.type()));
 		})).handleFloodErrors().send();
 	};
-	controller->show(Box(
-		Ui::EditBirthdayBox,
-		user->birthday(),
-		save));
+	if (match->captured(1).isEmpty()) {
+		controller->show(Box(Ui::EditBirthdayBox, user->birthday(), save));
+	} else {
+		controller->show(Box([=](not_null<Ui::GenericBox*> box) {
+			Ui::EditBirthdayBox(box, user->birthday(), save);
+
+			const auto container = box->verticalLayout();
+			const auto session = &user->session();
+			const auto key = Api::UserPrivacy::Key::Birthday;
+			session->api().userPrivacy().reload(key);
+			auto isExactlyContacts = session->api().userPrivacy().value(
+				key
+			) | rpl::map([=](const Api::UserPrivacy::Rule &value) {
+				return (value.option == Api::UserPrivacy::Option::Contacts)
+					&& value.always.peers.empty()
+					&& !value.always.premiums
+					&& value.never.peers.empty();
+			}) | rpl::distinct_until_changed();
+			Ui::AddSkip(container);
+			const auto link = u"internal:edit_privacy_birthday:from_box"_q;
+			Ui::AddDividerText(container, rpl::conditional(
+				std::move(isExactlyContacts),
+				tr::lng_settings_birthday_contacts(
+					lt_link,
+					tr::lng_settings_birthday_contacts_link(
+					) | Ui::Text::ToLink(link),
+					Ui::Text::WithEntities),
+				tr::lng_settings_birthday_about(
+					lt_link,
+					tr::lng_settings_birthday_about_link(
+					) | Ui::Text::ToLink(link),
+					Ui::Text::WithEntities)));
+		}));
+
+	}
 	return true;
 }
 
@@ -952,11 +985,29 @@ bool ShowEditBirthdayPrivacy(
 	if (!controller) {
 		return false;
 	}
+	const auto isFromBox = !match->captured(1).isEmpty();
 	auto syncLifetime = controller->session().api().userPrivacy().value(
 		Api::UserPrivacy::Key::Birthday
 	) | rpl::take(
 		1
 	) | rpl::start_with_next([=](const Api::UserPrivacy::Rule &value) {
+		if (isFromBox) {
+			using namespace ::Settings;
+			class Controller final : public BirthdayPrivacyController {
+				object_ptr<Ui::RpWidget> setupAboveWidget(
+					not_null<Window::SessionController*> controller,
+					not_null<QWidget*> parent,
+					rpl::producer<Option> optionValue,
+					not_null<QWidget*> outerContainer) override {
+					return { nullptr };
+				}
+			};
+			controller->show(Box<EditPrivacyBox>(
+				controller,
+				std::make_unique<Controller>(),
+				value));
+			return;
+		}
 		controller->show(Box<EditPrivacyBox>(
 			controller,
 			std::make_unique<::Settings::BirthdayPrivacyController>(),
@@ -1450,6 +1501,35 @@ bool ResolveUniqueGift(
 	return true;
 }
 
+bool ResolveConferenceCall(
+		Window::SessionController *controller,
+		const Match &match,
+		const QVariant &context) {
+	if (!controller) {
+		return false;
+	}
+	const auto slug = match->captured(1);
+	if (slug.isEmpty()) {
+		return false;
+	}
+	const auto myContext = context.value<ClickHandlerContext>();
+	controller->window().activate();
+	controller->resolveConferenceCall(match->captured(1), myContext.itemId);
+	return true;
+}
+
+bool ResolveStarsSettings(
+		Window::SessionController *controller,
+		const Match &match,
+		const QVariant &context) {
+	if (!controller) {
+		return false;
+	}
+	controller->showSettings(::Settings::CreditsId());
+	controller->window().activate();
+	return true;
+}
+
 } // namespace
 
 const std::vector<LocalUrlHandler> &LocalUrlHandlers() {
@@ -1582,6 +1662,13 @@ const std::vector<LocalUrlHandler> &LocalUrlHandlers() {
 			u"^ayu/?(.+)?(#|$)"_q,
 			FAUrlHandlers::HandleSomeText
 		},
+			u"^call/?\\?slug=([a-zA-Z0-9\\.\\_\\-]+)(&|$)"_q,
+			ResolveConferenceCall
+		},
+		{
+			u"^stars/?(^\\?.*)?(#|$)"_q,
+			ResolveStarsSettings
+		},
 		{
 			u"^([^\\?]+)(\\?|#|$)"_q,
 			FAUrlHandlers::HandleNothing
@@ -1613,11 +1700,11 @@ const std::vector<LocalUrlHandler> &InternalUrlHandlers() {
 			ShowSearchTagsPromo
 		},
 		{
-			u"^edit_birthday$"_q,
+			u"^edit_birthday(.*)$"_q,
 			ShowEditBirthday,
 		},
 		{
-			u"^edit_privacy_birthday$"_q,
+			u"^edit_privacy_birthday(.*)$"_q,
 			ShowEditBirthdayPrivacy,
 		},
 		{
@@ -1742,6 +1829,9 @@ QString TryConvertUrlToLocal(QString url) {
 		} else if (const auto nftMatch = regex_match(u"^nft/([a-zA-Z0-9\\.\\_\\-]+)(\\?|$)"_q, query, matchOptions)) {
 			const auto slug = nftMatch->captured(1);
 			return u"tg://nft?slug="_q + slug;
+		} else if (const auto callMatch = regex_match(u"^call/([a-zA-Z0-9\\.\\_\\-]+)(\\?|$)"_q, query, matchOptions)) {
+			const auto slug = callMatch->captured(1);
+			return u"tg://call?slug="_q + slug;
 		} else if (const auto privateMatch = regex_match(u"^"
 			"c/(\\-?\\d+)"
 			"("
@@ -1868,7 +1958,7 @@ void ResolveAndShowUniqueGift(
 		session->data().processUsers(data.vusers());
 		if (const auto gift = Api::FromTL(session, data.vgift())) {
 			using namespace ::Settings;
-			show->show(Box(GlobalStarGiftBox, show, *gift, st));
+			show->show(Box(GlobalStarGiftBox, show, *gift, PeerId(), st));
 		}
 	}).fail([=](const MTP::Error &error) {
 		clear();

@@ -80,6 +80,13 @@ struct RepliesReadTillUpdate {
 	bool out = false;
 };
 
+struct SublistReadTillUpdate {
+	ChannelId parentChatId;
+	PeerId sublistPeerId;
+	MsgId readTillId;
+	bool out = false;
+};
+
 struct GiftUpdate {
 	enum class Action : uchar {
 		Save,
@@ -89,9 +96,11 @@ struct GiftUpdate {
 		Delete,
 		Pin,
 		Unpin,
+		ResaleChange,
 	};
 
 	Data::SavedStarGiftId id;
+	QString slug;
 	Action action = {};
 };
 
@@ -230,22 +239,39 @@ public:
 
 	void registerGroupCall(not_null<GroupCall*> call);
 	void unregisterGroupCall(not_null<GroupCall*> call);
-	GroupCall *groupCall(CallId callId) const;
+	[[nodiscard]] GroupCall *groupCall(CallId callId) const;
+
+	[[nodiscard]] std::shared_ptr<GroupCall> sharedConferenceCall(
+		CallId id,
+		uint64 accessHash);
+	[[nodiscard]] std::shared_ptr<GroupCall> sharedConferenceCallFind(
+		const MTPUpdates &response);
 
 	void watchForOffline(not_null<UserData*> user, TimeId now = 0);
 	void maybeStopWatchForOffline(not_null<UserData*> user);
 
 	[[nodiscard]] auto invitedToCallUsers(CallId callId) const
-		-> const base::flat_set<not_null<UserData*>> &;
+		-> const base::flat_map<not_null<UserData*>, bool> &;
 	void registerInvitedToCallUser(
 		CallId callId,
 		not_null<PeerData*> peer,
-		not_null<UserData*> user);
-	void unregisterInvitedToCallUser(CallId callId, not_null<UserData*> user);
+		not_null<UserData*> user,
+		bool calling);
+	void registerInvitedToCallUser(
+		CallId callId,
+		GroupCall *call,
+		not_null<UserData*> user,
+		bool calling);
+	void unregisterInvitedToCallUser(
+		CallId callId,
+		not_null<UserData*> user,
+		bool onlyStopCalling);
 
 	struct InviteToCall {
 		CallId id = 0;
 		not_null<UserData*> user;
+		bool calling = false;
+		bool removed = false;
 	};
 	[[nodiscard]] rpl::producer<InviteToCall> invitesToCalls() const {
 		return _invitesToCalls.events();
@@ -546,6 +572,10 @@ public:
 	[[nodiscard]] auto repliesReadTillUpdates() const
 		-> rpl::producer<RepliesReadTillUpdate>;
 
+	void updateSublistReadTill(SublistReadTillUpdate update);
+	[[nodiscard]] auto sublistReadTillUpdates() const
+		-> rpl::producer<SublistReadTillUpdate>;
+
 	void selfDestructIn(not_null<HistoryItem*> item, crl::time delay);
 
 	[[nodiscard]] not_null<PhotoData*> photo(PhotoId id);
@@ -782,11 +812,6 @@ public:
 	void setMimeForwardIds(MessageIdsList &&list);
 	MessageIdsList takeMimeForwardIds();
 
-	void setTopPromoted(
-		History *promoted,
-		const QString &type,
-		const QString &message);
-
 	bool updateWallpapers(const MTPaccount_WallPapers &data);
 	void removeWallpaper(const WallPaper &paper);
 	const std::vector<WallPaper> &wallpapers() const;
@@ -990,6 +1015,7 @@ private:
 	rpl::event_stream<ChatListEntryRefresh> _chatListEntryRefreshes;
 	rpl::event_stream<> _unreadBadgeChanges;
 	rpl::event_stream<RepliesReadTillUpdate> _repliesReadTillUpdates;
+	rpl::event_stream<SublistReadTillUpdate> _sublistReadTillUpdates;
 	rpl::event_stream<SentToScheduled> _sentToScheduled;
 	rpl::event_stream<SentFromScheduled> _sentFromScheduled;
 
@@ -1091,18 +1117,17 @@ private:
 
 	base::flat_set<not_null<ViewElement*>> _heavyViewParts;
 
-	base::flat_map<uint64, not_null<GroupCall*>> _groupCalls;
+	base::flat_map<CallId, not_null<GroupCall*>> _groupCalls;
+	base::flat_map<CallId, std::weak_ptr<GroupCall>> _conferenceCalls;
 	rpl::event_stream<InviteToCall> _invitesToCalls;
 	base::flat_map<
-		uint64,
-		base::flat_set<not_null<UserData*>>> _invitedToCallUsers;
+		CallId,
+		base::flat_map<not_null<UserData*>, bool>> _invitedToCallUsers;
 
 	base::flat_set<not_null<ViewElement*>> _shownSpoilers;
 	base::flat_map<
 		ReactionId,
 		base::flat_set<not_null<ViewElement*>>> _viewsByTag;
-
-	History *_topPromoted = nullptr;
 
 	std::unordered_map<PeerId, std::unique_ptr<PeerData>> _peers;
 

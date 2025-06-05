@@ -18,14 +18,16 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 #include "dialogs/ui/dialogs_suggestions.h"
 #include "dialogs/dialogs_inner_widget.h"
 #include "dialogs/dialogs_search_from_controllers.h"
+#include "dialogs/dialogs_top_bar_suggestion.h"
 #include "dialogs/dialogs_quick_action.h"
 #include "dialogs/dialogs_key.h"
 #include "history/history.h"
 #include "history/history_item.h"
-#include "history/view/history_view_top_bar_widget.h"
+#include "history/view/history_view_chat_section.h"
 #include "history/view/history_view_contact_status.h"
-#include "history/view/history_view_requests_bar.h"
 #include "history/view/history_view_group_call_bar.h"
+#include "history/view/history_view_requests_bar.h"
+#include "history/view/history_view_top_bar_widget.h"
 #include "boxes/peers/edit_peer_requests_box.h"
 #include "ui/text/text_utilities.h"
 #include "ui/widgets/buttons.h"
@@ -33,6 +35,7 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 #include "ui/widgets/elastic_scroll.h"
 #include "ui/widgets/fields/input_field.h"
 #include "ui/wrap/fade_wrap.h"
+#include "ui/wrap/vertical_layout.h"
 #include "ui/effects/radial_animation.h"
 #include "ui/chat/requests_bar.h"
 #include "ui/chat/group_call_bar.h"
@@ -104,8 +107,8 @@ constexpr auto kSearchRequestDelay = crl::time(900);
 
 base::options::toggle OptionForumHideChatsList({
 	.id = kOptionForumHideChatsList,
-	.name = "Hide chats list in forums",
-	.description = "Don't keep a narrow column of chats list.",
+	.name = "Hide chat list in forums",
+	.description = "Don't keep a narrow column of chat list.",
 });
 
 [[nodiscard]] bool RedirectTextToSearch(const QString &text) {
@@ -377,8 +380,10 @@ Widget::Widget(
 	_scroll->setOverscrollTypes(
 		_stories ? OverscrollType::Virtual : OverscrollType::Real,
 		OverscrollType::Real);
-	_inner = _scroll->setOwnedWidget(object_ptr<InnerWidget>(
-		this,
+	const auto innerList = _scroll->setOwnedWidget(
+		object_ptr<Ui::VerticalLayout>(this));
+	_inner = innerList->add(object_ptr<InnerWidget>(
+		innerList,
 		controller,
 		rpl::combine(
 			_childListPeerId.value(),
@@ -388,8 +393,20 @@ Widget::Widget(
 		_inner->setMinimumHeight(height);
 		_inner->refresh();
 	}, _inner->lifetime());
+	rpl::combine(
+		_scroll->heightValue(),
+		_topBarSuggestionHeightChanged.events_starting_with(0)
+	) | rpl::start_with_next([=](int height, int topBarHeight) {
+		innerList->setMinimumHeight(height);
+		_inner->setMinimumHeight(height - topBarHeight);
+		_inner->refresh();
+	}, innerList->lifetime());
+	_scroll->widthValue() | rpl::start_with_next([=](int width) {
+		innerList->resizeToWidth(width);
+	}, innerList->lifetime());
 	_scrollToTop->raise();
 	_lockUnlock->toggle(false, anim::type::instant);
+
 
 	_inner->updated(
 	) | rpl::start_with_next([=] {
@@ -687,6 +704,7 @@ Widget::Widget(
 	}
 
 	setupFrozenAccountBar();
+	setupTopBarSuggestions(innerList);
 }
 
 void Widget::setupSwipeBack() {
@@ -795,7 +813,7 @@ void Widget::setupSwipeBack() {
 			}
 			return Ui::Controls::DefaultSwipeBackHandlerFinishData([=] {
 				_swipeBackData = {};
-				if (const auto forum = controller()->shownForum().current()) {
+				if (controller()->shownForum().current()) {
 					controller()->closeForum();
 				}
 			});
@@ -848,7 +866,10 @@ void Widget::chosenRow(const ChosenRow &row) {
 
 	const auto history = row.key.history();
 	const auto topicJump = history
-		? history->peer->forumTopicFor(row.message.fullId.msg)
+		? history->peer->forumTopicFor(row.topicJumpRootId)
+		: nullptr;
+	const auto sublistJump = history
+		? history->peer->monoforumSublistFor(row.sublistJumpPeerId)
 		: nullptr;
 
 	if (topicJump) {
@@ -864,6 +885,16 @@ void Widget::chosenRow(const ChosenRow &row) {
 			}
 			controller()->showThread(
 				topicJump,
+				ShowAtUnreadMsgId,
+				Window::SectionShow::Way::ClearStack);
+		}
+		return;
+	} else if (sublistJump) {
+		if (row.newWindow) {
+			controller()->showInNewWindow(Window::SeparateId(sublistJump));
+		} else {
+			controller()->showThread(
+				sublistJump,
 				ShowAtUnreadMsgId,
 				Window::SectionShow::Way::ClearStack);
 		}
@@ -899,13 +930,16 @@ void Widget::chosenRow(const ChosenRow &row) {
 		if (controller()->shownForum().current() == forum) {
 			controller()->closeForum();
 		} else if (row.newWindow) {
-			controller()->showInNewWindow(
-				Window::SeparateId(Window::SeparateType::Forum, history));
+			const auto type = forum->channel()->useSubsectionTabs()
+				? Window::SeparateType::Chat
+				: Window::SeparateType::Forum;
+			controller()->showInNewWindow(Window::SeparateId(type, history));
 		} else {
 			controller()->showForum(
 				forum,
 				Window::SectionShow().withChildColumn());
-			if (forum->channel()->viewForumAsMessages()) {
+			if (controller()->shownForum().current() == forum
+				&& forum->channel()->viewForumAsMessages()) {
 				controller()->showThread(
 					history,
 					ShowAtUnreadMsgId,
@@ -1009,6 +1043,71 @@ void Widget::setupFrozenAccountBar() {
 	}, lifetime());
 }
 
+void Widget::setupTopBarSuggestions(not_null<Ui::VerticalLayout*> dialogs) {
+	if (_layout == Layout::Child) {
+		return;
+	}
+	using namespace rpl::mappers;
+	crl::on_main(&session(), [=, session = &session()] {
+		(session->data().chatsListLoaded(nullptr)
+			? rpl::single<Data::Folder*>(nullptr)
+			: session->data().chatsListLoadedEvents()
+		) | rpl::filter(_1 == nullptr) | rpl::map([=] {
+			auto on = rpl::combine(
+				controller()->activeChatsFilter(),
+				_openedFolderOrForumChanges.events_starting_with(false),
+				widthValue() | rpl::map(
+					_1 >= st::columnMinimalWidthLeft
+				) | rpl::distinct_until_changed(),
+				_searchStateForTopBarSuggestion.events_starting_with(
+					!_searchState.query.isEmpty()),
+				_jumpToDate->toggledValue()
+			) | rpl::map([=](
+					FilterId id,
+					bool folderOrForum,
+					bool wide,
+					bool search,
+					bool searchInPeer) {
+				return !folderOrForum
+					&& wide
+					&& !search
+					&& !searchInPeer
+					&& (id == session->data().chatsFilters().defaultId());
+			});
+			return TopBarSuggestionValue(dialogs, session, std::move(on));
+		}) | rpl::flatten_latest() | rpl::start_with_next([=](
+				Ui::SlideWrap<Ui::RpWidget> *raw) {
+			if (raw) {
+				_topBarSuggestion = dialogs->insert(
+					0,
+					object_ptr<Ui::SlideWrap<Ui::RpWidget>>::fromRaw(raw));
+				_topBarSuggestion->heightValue(
+				) | rpl::start_to_stream(
+					_topBarSuggestionHeightChanged,
+					_topBarSuggestion->entity()->lifetime());
+				rpl::combine(
+					_topBarSuggestion->entity()->desiredHeightValue(),
+					_childListShown.value()
+				) | rpl::start_with_next([=](
+						int desiredHeight,
+						float64 shown) {
+					const auto newHeight = desiredHeight * (1. - shown);
+					_topBarSuggestion->entity()->setMaximumHeight(newHeight);
+					_topBarSuggestion->entity()->setMinimumWidth((shown > 0)
+						? width()
+						: 0);
+					_topBarSuggestion->entity()->resize(width(), newHeight);
+				}, _topBarSuggestion->lifetime());
+			} else {
+				if (_topBarSuggestion) {
+					delete _topBarSuggestion;
+				}
+				_topBarSuggestion = nullptr;
+			}
+		}, lifetime());
+	});
+}
+
 void Widget::updateFrozenAccountBar() {
 	if (_layout == Layout::Child
 		|| _openedForum
@@ -1021,6 +1120,12 @@ void Widget::updateFrozenAccountBar() {
 			controller()->uiShow(),
 			FrozenWriteRestrictionType::DialogsList);
 		_frozenAccountBar->show();
+	}
+}
+
+void Widget::updateTopBarSuggestions() {
+	if (_topBarSuggestion) {
+		_openedFolderOrForumChanges.fire(_openedFolder || _openedForum);
 	}
 }
 
@@ -1461,7 +1566,7 @@ void Widget::updateControlsVisibility(bool fast) {
 		_frozenAccountBar->show();
 	}
 	if (_chatFilters) {
-		_chatFilters->show();
+		_chatFilters->setVisible(!_openedForum);
 	}
 	if (_openedFolder || _openedForum) {
 		_subsectionTopBar->show();
@@ -1779,6 +1884,7 @@ void Widget::changeOpenedFolder(Data::Folder *folder, anim::type animated) {
 			storiesExplicitCollapse();
 		}
 		updateFrozenAccountBar();
+		updateTopBarSuggestions();
 	}, (folder != nullptr), animated);
 }
 
@@ -1836,6 +1942,7 @@ void Widget::changeOpenedForum(Data::Forum *forum, anim::type animated) {
 		_inner->changeOpenedForum(forum);
 		storiesToggleExplicitExpand(false);
 		updateFrozenAccountBar();
+		updateTopBarSuggestions();
 		updateStoriesVisibility();
 	}, (forum != nullptr), animated);
 }
@@ -1884,7 +1991,7 @@ void Widget::refreshTopBars() {
 					? Dialogs::Key(history)
 					: Dialogs::Key(_openedFolder)),
 				.section = Dialogs::EntryState::Section::ChatsList,
-			}, history ? history->sendActionPainter().get() : nullptr);
+			}, history ? history->sendActionPainter() : nullptr);
 		if (_forumSearchRequested) {
 			showSearchInTopBar(anim::type::instant);
 		}
@@ -2040,6 +2147,10 @@ void Widget::setInnerFocus(bool unfocusSearch) {
 
 bool Widget::searchHasFocus() const {
 	return _searchHasFocus;
+}
+
+Data::Forum *Widget::openedForum() const {
+	return _openedForum;
 }
 
 void Widget::jumpToTop(bool belowPinned) {
@@ -2441,7 +2552,19 @@ bool Widget::search(bool inCache, SearchRequestDelay delay) {
 	};
 	if (trimmed.isEmpty() && !fromPeer && inTags.empty()) {
 		cancelSearchRequest();
+
+		// Otherwise inside first searchApplyEmpty we call searchMode(),
+		// which tries to load migrated search results for empty query.
+		_migratedProcess.full = true;
+
 		searchApplyEmpty(fromStartType, currentSearchProcess());
+		if (_searchInMigrated) {
+			const auto type = SearchRequestType{
+				.migrated = true,
+				.start = true,
+			};
+			searchApplyEmpty(type, &_migratedProcess);
+		}
 		if (_searchWithPostsPreview) {
 			searchApplyEmpty(
 				{ .posts = true, .start = true },
@@ -2498,7 +2621,7 @@ bool Widget::search(bool inCache, SearchRequestDelay delay) {
 				: _searchState.inChat.sublist();
 			const auto fromPeer = sublist ? nullptr : _searchQueryFrom;
 			const auto savedPeer = sublist
-				? sublist->peer().get()
+				? sublist->sublistPeer().get()
 				: nullptr;
 			_historiesRequest = histories.sendRequest(history, type, [=](
 					Fn<void()> finish) {
@@ -2674,7 +2797,7 @@ void Widget::searchMore() {
 				: _searchState.inChat.sublist();
 			const auto fromPeer = sublist ? nullptr : _searchQueryFrom;
 			const auto savedPeer = sublist
-				? sublist->peer().get()
+				? sublist->sublistPeer().get()
 				: nullptr;
 			_historiesRequest = histories.sendRequest(history, type, [=](
 					Fn<void()> finish) {
@@ -2863,7 +2986,8 @@ auto Widget::currentSearchProcess() -> not_null<SearchProcessState*> {
 
 bool Widget::computeSearchWithPostsPreview() const {
 	return 	(_searchHashOrCashtag != HashOrCashtag::None)
-		&& (_searchState.tab == ChatSearchTab::MyMessages);
+		&& (_searchState.tab == ChatSearchTab::MyMessages)
+		&& !_searchState.inChat;
 }
 
 void Widget::searchReceived(
@@ -3401,16 +3525,23 @@ bool Widget::applySearchState(SearchState state) {
 			: ChatSearchTab::MyMessages;
 	}
 
-	const auto migrateFrom = (peer && !topic)
+	const auto migrateFrom = (peer
+		&& !topic
+		&& state.tab == ChatSearchTab::ThisPeer)
 		? peer->migrateFrom()
 		: nullptr;
 	_searchInMigrated = migrateFrom
 		? peer->owner().history(migrateFrom).get()
 		: nullptr;
 	_searchState = state;
-	if (_chatFilters && queryEmptyChanged) {
-		_chatFilters->setVisible(_searchState.query.isEmpty());
+	if (_chatFilters && (queryEmptyChanged || inChatChanged)) {
+		_chatFilters->setVisible(_searchState.query.isEmpty()
+			&& !_openedForum
+			&& !searchInPeer());
 		updateControlsGeometry();
+	}
+	if (_topBarSuggestion && queryEmptyChanged) {
+		_searchStateForTopBarSuggestion.fire(!_searchState.query.isEmpty());
 	}
 	_searchWithPostsPreview = computeSearchWithPostsPreview();
 	if (queryChanged) {
@@ -3836,7 +3967,9 @@ void Widget::updateControlsGeometry() {
 			_chatFilters->move(0, chatFiltersTop);
 		}
 		const auto scrollTop = chatFiltersTop
-			+ ((_chatFilters && _searchState.query.isEmpty())
+			+ ((_chatFilters
+				&& _searchState.query.isEmpty()
+				&& !_openedForum && !searchInPeer())
 				? (_chatFilters->height() * (1. - narrowRatio))
 				: 0);
 		const auto scrollHeight = height() - scrollTop - bottomSkip;
@@ -4067,7 +4200,7 @@ PeerData *Widget::searchInPeer() const {
 		: _openedForum
 		? _openedForum->channel().get()
 		: _searchState.inChat.sublist()
-		? session().user().get()
+		? _searchState.inChat.sublist()->owningHistory()->peer.get()
 		: _searchState.inChat.peer();
 }
 

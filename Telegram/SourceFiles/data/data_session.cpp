@@ -346,6 +346,19 @@ void Session::subscribeForTopicRepliesLists() {
 		}
 	}, _lifetime);
 
+	sublistReadTillUpdates(
+	) | rpl::start_with_next([=](const SublistReadTillUpdate &update) {
+		if (const auto parentChat = channelLoaded(update.parentChatId)) {
+			if (const auto monoforum = parentChat->monoforum()) {
+				const auto sublistPeerId = update.sublistPeerId;
+				const auto peer = monoforum->owner().peer(sublistPeerId);
+				if (const auto sublist = monoforum->sublistLoaded(peer)) {
+					sublist->apply(update);
+				}
+			}
+		}
+	}, _lifetime);
+
 	session().changes().messageUpdates(
 		MessageUpdate::Flag::NewAdded
 		| MessageUpdate::Flag::NewMaybeAdded
@@ -354,6 +367,11 @@ void Session::subscribeForTopicRepliesLists() {
 	) | rpl::start_with_next([=](const MessageUpdate &update) {
 		if (const auto topic = update.item->topic()) {
 			topic->replies()->apply(update);
+		} else if (update.flags == MessageUpdate::Flag::ReplyToTopAdded) {
+			// Not interested in this one for sublist.
+			return;
+		} else if (const auto sublist = update.item->savedSublist()) {
+			sublist->apply(update);
 		}
 	}, _lifetime);
 
@@ -377,19 +395,21 @@ void Session::clear() {
 	// Optimization: clear notifications before destroying items.
 	Core::App().notifications().clearFromSession(_session);
 
-	// We must clear all forums before clearing customEmojiManager.
+	// We must clear all [mono]forums before clearing customEmojiManager.
 	// Because in Data::ForumTopic an Ui::Text::CustomEmoji is cached.
 	auto forums = base::flat_set<not_null<ChannelData*>>();
 	for (const auto &[peerId, peer] : _peers) {
 		if (const auto channel = peer->asChannel()) {
-			if (channel->isForum()) {
+			if (channel->isForum() || channel->amMonoforumAdmin()) {
 				forums.emplace(channel);
 			}
 		}
 	}
 	for (const auto &channel : forums) {
-		channel->setFlags(channel->flags() & ~ChannelDataFlag::Forum);
+		channel->setFlags(channel->flags()
+			& ~(ChannelDataFlag::Forum | ChannelDataFlag::MonoforumAdmin));
 	}
+	_savedMessages->clear();
 
 	_sendActionManager->clear();
 
@@ -964,14 +984,19 @@ not_null<PeerData*> Session::processChat(const MTPChat &data) {
 			| Flag::CallActive
 			| Flag::CallNotEmpty
 			| Flag::Forbidden
-			| (!minimal ? (Flag::Left | Flag::Creator) : Flag())
+			| (!minimal
+				? (Flag::Left | Flag::Creator)
+				: Flag())
 			| Flag::NoForwards
 			| Flag::JoinToWrite
 			| Flag::RequestToJoin
 			| Flag::Forum
+			| Flag::ForumTabs
 			| ((!minimal && !data.is_stories_hidden_min())
 				? Flag::StoriesHidden
-				: Flag());
+				: Flag())
+			| Flag::AutoTranslation
+			| Flag::Monoforum;
 		const auto storiesState = minimal
 			? std::optional<Data::Stories::PeerSourceState>()
 			: data.is_stories_unavailable()
@@ -997,8 +1022,8 @@ not_null<PeerData*> Session::processChat(const MTPChat &data) {
 				? Flag::CallNotEmpty
 				: Flag())
 			| (!minimal
-				? (data.is_left() ? Flag::Left : Flag())
-				| (data.is_creator() ? Flag::Creator : Flag())
+				? ((data.is_left() ? Flag::Left : Flag())
+					| (data.is_creator() ? Flag::Creator : Flag()))
 				: Flag())
 			| (data.is_noforwards() ? Flag::NoForwards : Flag())
 			| (data.is_join_to_send() ? Flag::JoinToWrite : Flag())
@@ -1006,11 +1031,14 @@ not_null<PeerData*> Session::processChat(const MTPChat &data) {
 			| ((data.is_forum() && data.is_megagroup())
 				? Flag::Forum
 				: Flag())
+			| (data.is_forum_tabs() ? Flag::ForumTabs : Flag())
 			| ((!minimal
 				&& !data.is_stories_hidden_min()
 				&& data.is_stories_hidden())
 				? Flag::StoriesHidden
-				: Flag());
+				: Flag())
+			| (data.is_autotranslation() ? Flag::AutoTranslation : Flag())
+			| (data.is_monoforum() ? Flag::Monoforum : Flag());
 		channel->setFlags((channel->flags() & ~flagsMask) | flagsSet);
 		channel->setBotVerifyDetailsIcon(
 			data.vbot_verification_icon().value_or_empty());
@@ -1025,6 +1053,16 @@ not_null<PeerData*> Session::processChat(const MTPChat &data) {
 		channel->setPhoto(data.vphoto());
 		channel->setStarsPerMessage(
 			data.vsend_paid_messages_stars().value_or_empty());
+
+		if (const auto monoforum = data.vlinked_monoforum_id()) {
+			if (const auto linked = channelLoaded(monoforum->v)) {
+				channel->setMonoforumLink(linked);
+			} else {
+				channel->updateFull();
+			}
+		} else {
+			channel->setMonoforumLink(nullptr);
+		}
 
 		if (wasInChannel != channel->amIn()) {
 			flags |= UpdateFlag::ChannelAmIn;
@@ -1140,6 +1178,60 @@ GroupCall *Session::groupCall(CallId callId) const {
 	return (i != end(_groupCalls)) ? i->second.get() : nullptr;
 }
 
+std::shared_ptr<GroupCall> Session::sharedConferenceCall(
+		CallId id,
+		uint64 accessHash) {
+	const auto i = _conferenceCalls.find(id);
+	if (i != end(_conferenceCalls)) {
+		if (auto result = i->second.lock()) {
+			return result;
+		}
+	}
+	auto result = std::make_shared<GroupCall>(
+		session().user(),
+		id,
+		accessHash,
+		TimeId(), // scheduledDate
+		false, // rtmp
+		true); // conference
+	if (i != end(_conferenceCalls)) {
+		i->second = result;
+	} else {
+		_conferenceCalls.emplace(id, result);
+	}
+	return result;
+}
+
+std::shared_ptr<GroupCall> Session::sharedConferenceCallFind(
+		const MTPUpdates &response) {
+	const auto list = response.match([&](const MTPDupdates &data) {
+		return &data.vupdates().v;
+	}, [&](const MTPDupdatesCombined &data) {
+		return &data.vupdates().v;
+	}, [](const auto &) {
+		return (const QVector<MTPUpdate>*)nullptr;
+	});
+	const auto empty = std::shared_ptr<GroupCall>();
+	if (!list) {
+		return empty;
+	}
+	for (const auto &update : *list) {
+		const auto call = update.match([&](const MTPDupdateGroupCall &data) {
+			return data.vcall().match([&](const MTPDgroupCall &data) {
+				return data.is_conference()
+					? sharedConferenceCall(
+						data.vid().v,
+						data.vaccess_hash().v)
+					: nullptr;
+			}, [&](const auto &) { return empty; });
+		}, [&](const auto &) { return empty; });
+		if (call) {
+			return call;
+		}
+	}
+	return empty;
+}
+
 void Session::watchForOffline(not_null<UserData*> user, TimeId now) {
 	if (!now) {
 		now = base::unixtime::now();
@@ -1200,8 +1292,8 @@ void Session::checkLocalUsersWentOffline() {
 }
 
 auto Session::invitedToCallUsers(CallId callId) const
--> const base::flat_set<not_null<UserData*>> & {
-	static const base::flat_set<not_null<UserData*>> kEmpty;
+-> const base::flat_map<not_null<UserData*>, bool> & {
+	static const base::flat_map<not_null<UserData*>, bool> kEmpty;
 	const auto i = _invitedToCallUsers.find(callId);
 	return (i != _invitedToCallUsers.end()) ? i->second : kEmpty;
 }
@@ -1209,8 +1301,16 @@ auto Session::invitedToCallUsers(CallId callId) const
 void Session::registerInvitedToCallUser(
 		CallId callId,
 		not_null<PeerData*> peer,
-		not_null<UserData*> user) {
-	const auto call = peer->groupCall();
+		not_null<UserData*> user,
+		bool calling) {
+	registerInvitedToCallUser(callId, peer->groupCall(), user, calling);
+}
+
+void Session::registerInvitedToCallUser(
+		CallId callId,
+		GroupCall *call,
+		not_null<UserData*> user,
+		bool calling) {
 	if (call && call->id() == callId) {
 		const auto inCall = ranges::contains(
 			call->participants(),
@@ -1220,18 +1320,32 @@ void Session::registerInvitedToCallUser(
 			return;
 		}
 	}
-	_invitedToCallUsers[callId].emplace(user);
-	_invitesToCalls.fire({ callId, user });
+	_invitedToCallUsers[callId][user] = calling;
+	_invitesToCalls.fire({ callId, user, calling });
 }
 
 void Session::unregisterInvitedToCallUser(
 		CallId callId,
-		not_null<UserData*> user) {
+		not_null<UserData*> user,
+		bool onlyStopCalling) {
 	const auto i = _invitedToCallUsers.find(callId);
 	if (i != _invitedToCallUsers.end()) {
-		i->second.remove(user);
-		if (i->second.empty()) {
-			_invitedToCallUsers.erase(i);
+		const auto j = i->second.find(user);
+		if (j != end(i->second)) {
+			if (onlyStopCalling) {
+				if (!j->second) {
+					return;
+				}
+				j->second = false;
+			} else {
+				i->second.erase(j);
+				if (i->second.empty()) {
+					_invitedToCallUsers.erase(i);
+				}
+			}
+			const auto calling = false;
+			const auto removed = !onlyStopCalling;
+			_invitesToCalls.fire({ callId, user, calling, removed });
 		}
 	}
 }
@@ -2236,7 +2350,10 @@ void Session::applyDialog(
 }
 
 bool Session::pinnedCanPin(not_null<Dialogs::Entry*> entry) const {
-	if (const auto sublist = entry->asSublist()) {
+	if ([[maybe_unused]] const auto sublist = entry->asSublist()) {
+		if (sublist->parentChat()) {
+			return false;
+		}
 		const auto saved = &savedMessages();
 		return pinnedChatsOrder(saved).size() < pinnedChatsLimit(saved);
 	} else if (const auto topic = entry->asTopic()) {
@@ -2278,6 +2395,9 @@ int Session::pinnedChatsLimit(not_null<Data::Forum*> forum) const {
 }
 
 int Session::pinnedChatsLimit(not_null<Data::SavedMessages*> saved) const {
+	if (saved->parentChat()) {
+		return 0;
+	}
 	const auto limits = Data::PremiumLimits(_session);
 	return limits.savedSublistsPinnedCurrent();
 }
@@ -2318,6 +2438,9 @@ rpl::producer<int> Session::maxPinnedChatsLimitValue(
 
 rpl::producer<int> Session::maxPinnedChatsLimitValue(
 		not_null<SavedMessages*> saved) const {
+	if (saved->parentChat()) {
+		return rpl::single(0);
+	}
 	// Premium limit from appconfig.
 	// We always use premium limit in the MainList limit producer,
 	// because it slices the list to that limit. We don't want to slice
@@ -2814,6 +2937,15 @@ void Session::updateRepliesReadTill(RepliesReadTillUpdate update) {
 auto Session::repliesReadTillUpdates() const
 -> rpl::producer<RepliesReadTillUpdate> {
 	return _repliesReadTillUpdates.events();
+}
+
+void Session::updateSublistReadTill(SublistReadTillUpdate update) {
+	_sublistReadTillUpdates.fire(std::move(update));
+}
+
+auto Session::sublistReadTillUpdates() const
+-> rpl::producer<SublistReadTillUpdate> {
+	return _sublistReadTillUpdates.events();
 }
 
 int Session::computeUnreadBadge(const Dialogs::UnreadState &state) const {
@@ -4490,12 +4622,12 @@ not_null<Folder*> Session::processFolder(const MTPDfolder &data) {
 
 not_null<Dialogs::MainList*> Session::chatsListFor(
 		not_null<Dialogs::Entry*> entry) {
-	const auto topic = entry->asTopic();
-	return topic
-		? topic->forum()->topicsList()
-		: entry->asSublist()
-		? _savedMessages->chatsList()
-		: chatsList(entry->folder());
+	if (const auto topic = entry->asTopic()) {
+		return topic->forum()->topicsList();
+	} else if (const auto sublist = entry->asSublist()) {
+		return sublist->parent()->chatsList();
+	}
+	return chatsList(entry->folder());
 }
 
 not_null<Dialogs::MainList*> Session::chatsList(Data::Folder *folder) {
@@ -4571,6 +4703,13 @@ void Session::refreshChatListEntry(Dialogs::Key key) {
 		}
 		if (const auto forum = history->peer->forum()) {
 			forum->preloadTopics();
+		} else if (const auto monoforum = history->peer->monoforum()) {
+			monoforum->preloadSublists();
+		}
+		if (const auto broadcast = history->peer->monoforumBroadcast()) {
+			if (!broadcast->isFullLoaded()) {
+				broadcast->updateFull();
+			}
 		}
 	}
 }
@@ -4731,36 +4870,6 @@ void Session::setMimeForwardIds(MessageIdsList &&list) {
 
 MessageIdsList Session::takeMimeForwardIds() {
 	return std::move(_mimeForwardIds);
-}
-
-void Session::setTopPromoted(
-		History *promoted,
-		const QString &type,
-		const QString &message) {
-	const auto changed = (_topPromoted != promoted);
-	if (!changed
-		&& (!promoted || promoted->topPromotionMessage() == message)) {
-		return;
-	}
-	if (changed) {
-		if (_topPromoted) {
-			_topPromoted->cacheTopPromotion(false, QString(), QString());
-		}
-	}
-	const auto old = std::exchange(_topPromoted, promoted);
-	if (_topPromoted) {
-		histories().requestDialogEntry(_topPromoted);
-		_topPromoted->cacheTopPromotion(true, type, message);
-		_topPromoted->requestChatListMessage();
-		session().changes().historyUpdated(
-			_topPromoted,
-			HistoryUpdate::Flag::TopPromoted);
-	}
-	if (changed && old) {
-		session().changes().historyUpdated(
-			old,
-			HistoryUpdate::Flag::TopPromoted);
-	}
 }
 
 bool Session::updateWallpapers(const MTPaccount_WallPapers &data) {

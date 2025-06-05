@@ -7,9 +7,12 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 */
 #include "main/main_app_config.h"
 
+#include "api/api_authorizations.h"
 #include "apiwrap.h"
 #include "base/call_delayed.h"
 #include "main/main_account.h"
+#include "main/main_session.h"
+#include "data/data_session.h"
 #include "ui/chat/chat_style.h"
 
 namespace Main {
@@ -102,8 +105,49 @@ int AppConfig::paidMessageCommission() const {
 	return get<int>(u"stars_paid_message_commission_permille"_q, 850);
 }
 
+int AppConfig::paidMessageChannelStarsDefault() const {
+	return get<int>(u"stars_paid_messages_channel_amount_default"_q, 10);
+}
+
 int AppConfig::pinnedGiftsLimit() const {
 	return get<int>(u"stargifts_pinned_to_top_limit"_q, 6);
+}
+
+bool AppConfig::callsDisabledForSession() const {
+	const auto authorizations = _account->sessionExists()
+		? &_account->session().api().authorizations()
+		: nullptr;
+	return get<bool>(
+		u"call_requests_disabled"_q,
+		authorizations->callsDisabledHere());
+}
+
+int AppConfig::confcallSizeLimit() const {
+	return get<int>(
+		u"conference_call_size_limit"_q,
+		_account->mtp().isTestMode() ? 5 : 100);
+}
+
+bool AppConfig::confcallPrioritizeVP8() const {
+	return get<bool>(u"confcall_use_vp8"_q, false);
+}
+
+int AppConfig::giftResalePriceMax() const {
+	return get<int>(u"stars_stargift_resale_amount_max"_q, 35000);
+}
+
+int AppConfig::giftResalePriceMin() const {
+	return get<int>(u"stars_stargift_resale_amount_min"_q, 125);
+}
+
+int AppConfig::giftResaleReceiveThousandths() const {
+	return get<int>(u"stars_stargift_resale_commission_permille"_q, 800);
+}
+
+int AppConfig::pollOptionsLimit() const {
+	return get<int>(
+		u"poll_answers_max"_q,
+		_account->mtp().isTestMode() ? 12 : 10);
 }
 
 void AppConfig::refresh(bool force) {
@@ -286,34 +330,6 @@ std::vector<int> AppConfig::getIntArray(
 			return std::move(fallback);
 		});
 	});
-}
-
-bool AppConfig::suggestionCurrent(const QString &key) const {
-	return !_dismissedSuggestions.contains(key)
-		&& ranges::contains(
-			get<std::vector<QString>>(
-				u"pending_suggestions"_q,
-				std::vector<QString>()),
-			key);
-}
-
-rpl::producer<> AppConfig::suggestionRequested(const QString &key) const {
-	return value(
-	) | rpl::filter([=] {
-		return suggestionCurrent(key);
-	});
-}
-
-void AppConfig::dismissSuggestion(const QString &key) {
-	Expects(_api.has_value());
-
-	if (!_dismissedSuggestions.emplace(key).second) {
-		return;
-	}
-	_api->request(MTPhelp_DismissSuggestion(
-		MTP_inputPeerEmpty(),
-		MTP_string(key)
-	)).send();
 }
 
 bool AppConfig::newRequirePremiumFree() const {

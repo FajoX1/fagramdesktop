@@ -11,6 +11,7 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 #include "ui/userpic_view.h"
 
 #include "ui/empty_userpic.h"
+#include "ui/painter.h"
 #include "ui/image/image_prepare.h"
 
 namespace Ui {
@@ -28,14 +29,14 @@ void ValidateUserpicCache(
 		const QImage *cloud,
 		const EmptyUserpic *empty,
 		int size,
-		bool forum) {
+		PeerUserpicShape shape) {
 	Expects(cloud != nullptr || empty != nullptr);
 
 	const auto full = QSize(size, size);
 	const auto version = style::PaletteVersion();
-	const auto forumValue = forum ? 1 : 0;
+	const auto shapeValue = static_cast<uint32>(shape) & 3;
 	const auto regenerate = (view.cached.size() != QSize(size, size))
-		|| (view.forum != forumValue)
+		|| (view.shape != shapeValue)
 		|| (cloud && !view.empty.null())
 		|| (empty && empty != view.empty.get())
 		|| (empty && view.paletteVersion != version);
@@ -44,7 +45,7 @@ void ValidateUserpicCache(
 		return;
 	}
 	view.empty = empty;
-	view.forum = forumValue;
+	view.shape = shapeValue;
 	view.paletteVersion = version;
 
 	if (!use_default_rounding) {
@@ -56,7 +57,16 @@ void ValidateUserpicCache(
 				Qt::SmoothTransformation);
 
 			radius /= style::DevicePixelRatio();
-
+		}
+	}
+	if (cloud) {
+		view.cached = cloud->scaled(
+			full,
+			Qt::IgnoreAspectRatio,
+			Qt::SmoothTransformation);
+		if (shape == PeerUserpicShape::Monoforum) {
+			view.cached = Ui::ApplyMonoforumShape(std::move(view.cached));
+		} else if (shape == PeerUserpicShape::Forum) {
 			view.cached = Images::Round(
 				std::move(view.cached),
 				Images::CornersMask(radius));
@@ -68,6 +78,10 @@ void ValidateUserpicCache(
 
 			auto p = QPainter(&view.cached);
 
+		auto p = QPainter(&view.cached);
+		if (shape == PeerUserpicShape::Monoforum) {
+			empty->paintMonoforum(p, 0, 0, size, size);
+		} else if (shape == PeerUserpicShape::Forum) {
 			empty->paintRounded(
 				p,
 				0,

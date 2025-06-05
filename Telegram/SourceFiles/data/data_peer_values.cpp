@@ -271,6 +271,7 @@ inline auto DefaultRestrictionValue(
 			| Flag::Left
 			| Flag::Forum
 			| Flag::JoinToWrite
+			| Flag::Monoforum
 			| Flag::HasLink
 			| Flag::Forbidden
 			| Flag::Creator
@@ -294,7 +295,8 @@ inline auto DefaultRestrictionValue(
 					&& (flags & Flag::Forum);
 				const auto allowed = !(flags & notAmInFlags)
 					|| ((flags & Flag::HasLink)
-						&& !(flags & Flag::JoinToWrite));
+						&& !(flags & Flag::JoinToWrite))
+					|| (flags & Flag::Monoforum);
 				const auto restricted = sendRestriction
 					| (defaultSendRestriction && !unrestrictedByBoosts);
 				return allowed
@@ -606,7 +608,7 @@ rpl::producer<int> UniqueReactionsLimitValue(
 	) | rpl::map([config = &peer->session().appConfig()] {
 		return UniqueReactionsLimit(config);
 	}) | rpl::distinct_until_changed();
-	if (const auto channel = peer->asChannel()) {
+	if (peer->isChannel()) {
 		return rpl::combine(
 			PeerAllowedReactionsValue(peer),
 			std::move(configValue)
@@ -615,7 +617,7 @@ rpl::producer<int> UniqueReactionsLimitValue(
 				? allowedReactions.maxCount
 				: limit;
 		});
-	} else if (const auto chat = peer->asChat()) {
+	} else if (peer->isChat()) {
 		return rpl::combine(
 			PeerAllowedReactionsValue(peer),
 			std::move(configValue)

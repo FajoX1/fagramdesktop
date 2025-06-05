@@ -22,18 +22,12 @@ struct HistoryMessageMarkupData;
 struct HistoryMessageReplyMarkup;
 struct HistoryMessageTranslation;
 struct HistoryMessageForwarded;
-struct HistoryMessageSavedMediaData;
-struct HistoryMessageFactcheck;
 struct HistoryServiceDependentData;
 enum class HistorySelfDestructType;
 struct PreparedServiceText;
 struct MessageFactcheck;
 class ReplyKeyboard;
 struct LanguageId;
-
-namespace Api {
-struct SendOptions;
-} // namespace Api
 
 namespace base {
 template <typename Enum>
@@ -44,15 +38,6 @@ namespace Storage {
 enum class SharedMediaType : signed char;
 using SharedMediaTypesMask = base::enum_mask<SharedMediaType>;
 } // namespace Storage
-
-namespace Ui {
-class RippleAnimation;
-} // namespace Ui
-
-namespace style {
-struct BotKeyboardButton;
-struct RippleAnimation;
-} // namespace style
 
 namespace Data {
 struct MessagePosition;
@@ -71,24 +56,11 @@ struct PaidReactionSend;
 struct SendError;
 } // namespace Data
 
-namespace Main {
-class Session;
-} // namespace Main
-
-namespace Window {
-class SessionController;
-} // namespace Window
-
 namespace HistoryUnreadThings {
 enum class AddType;
 } // namespace HistoryUnreadThings
 
 namespace HistoryView {
-struct TextState;
-struct StateRequest;
-enum class CursorState : char;
-enum class PointState : char;
-enum class Context : char;
 class ElementDelegate;
 class Element;
 class Message;
@@ -207,6 +179,7 @@ public:
 	[[nodiscard]] bool isFromScheduled() const;
 	[[nodiscard]] bool isScheduled() const;
 	[[nodiscard]] bool isSponsored() const;
+	[[nodiscard]] bool canLookupMessageAuthor() const;
 	[[nodiscard]] bool skipNotification() const;
 	[[nodiscard]] bool isUserpicSuggestion() const;
 	[[nodiscard]] BusinessShortcutId shortcutId() const;
@@ -323,7 +296,7 @@ public:
 		return (_flags & MessageFlag::HideEdited);
 	}
 	[[nodiscard]] bool hideDisplayDate() const {
-		return (_flags & MessageFlag::HideDisplayDate);
+		return isEmpty() || (_flags & MessageFlag::HideDisplayDate);
 	}
 	[[nodiscard]] bool isLocal() const {
 		return _flags & MessageFlag::Local;
@@ -379,6 +352,8 @@ public:
 	void applyEditionToHistoryCleared();
 	void updateReplyMarkup(HistoryMessageMarkupData &&markup);
 	void contributeToSlowmode(TimeId realDate = 0);
+
+	void clearMediaAsExpired();
 
 	void addToUnreadThings(HistoryUnreadThings::AddType type);
 	void destroyHistoryEntry();
@@ -517,7 +492,7 @@ public:
 	[[nodiscard]] MsgId originalId() const;
 
 	[[nodiscard]] Data::SavedSublist *savedSublist() const;
-	[[nodiscard]] PeerData *savedSublistPeer() const;
+	[[nodiscard]] PeerId sublistPeerId() const;
 	[[nodiscard]] PeerData *savedFromSender() const;
 	[[nodiscard]] const HiddenSenderInfo *savedFromHiddenSenderInfo() const;
 
@@ -595,7 +570,7 @@ private:
 		return _flags & MessageFlag::Legacy;
 	}
 
-	[[nodiscard]] bool checkCommentsLinkedChat(ChannelId id) const;
+	[[nodiscard]] bool checkDiscussionLink(ChannelId id) const;
 
 	void setReplyMarkup(HistoryMessageMarkupData &&markup);
 
@@ -669,6 +644,10 @@ private:
 		CallId linkCallId);
 	[[nodiscard]] PreparedServiceText prepareCallScheduledText(
 		TimeId scheduleDate);
+
+	[[nodiscard]] PreparedServiceText prepareServiceTextForMessage(
+		const MTPMessageMedia &media,
+		bool unread);
 
 	void flagSensitiveContent();
 	[[nodiscard]] PeerData *computeDisplayFrom() const;

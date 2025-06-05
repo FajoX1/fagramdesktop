@@ -98,6 +98,7 @@ enum { // Local Storage Keys
 	lskRoundPlaceholder = 0x1a, // no data
 	lskInlineBotsDownloads = 0x1b, // no data
 	lskMediaLastPlaybackPositions = 0x1c, // no data
+	lskBotStorages = 0x1d, // data: PeerId botId
 };
 
 auto EmptyMessageDraftSources()
@@ -255,6 +256,9 @@ base::flat_set<QString> Account::collectGoodNames() const {
 	for (const auto &[key, value] : _draftCursorsMap) {
 		push(value);
 	}
+	for (const auto &[key, value] : _botStoragesMap) {
+		push(value);
+	}
 	for (const auto &value : keys) {
 		push(value);
 	}
@@ -308,6 +312,8 @@ Account::ReadMapResult Account::readMapWith(
 	base::flat_map<PeerId, FileKey> draftsMap;
 	base::flat_map<PeerId, FileKey> draftCursorsMap;
 	base::flat_map<PeerId, bool> draftsNotReadMap;
+	base::flat_map<PeerId, FileKey> botStoragesMap;
+	base::flat_map<PeerId, bool> botStoragesNotReadMap;
 	quint64 locationsKey = 0, reportSpamStatusesKey = 0, trustedPeersKey = 0;
 	quint64 recentStickersKeyOld = 0;
 	quint64 installedStickersKey = 0, featuredStickersKey = 0, recentStickersKey = 0, favedStickersKey = 0, archivedStickersKey = 0;
@@ -443,6 +449,18 @@ Account::ReadMapResult Account::readMapWith(
 				>> webviewStorageTokenBots
 				>> webviewStorageTokenOther;
 		} break;
+		case lskBotStorages: {
+			quint32 count = 0;
+			map.stream >> count;
+			for (quint32 i = 0; i < count; ++i) {
+				FileKey key;
+				quint64 peerIdSerialized;
+				map.stream >> key >> peerIdSerialized;
+				const auto peerId = DeserializePeerId(peerIdSerialized);
+				botStoragesMap.emplace(peerId, key);
+				botStoragesNotReadMap.emplace(peerId, true);
+			}
+		} break;
 		default:
 			LOG(("App Error: unknown key type in encrypted map: %1").arg(keyType));
 			return ReadMapResult::Failed;
@@ -457,6 +475,8 @@ Account::ReadMapResult Account::readMapWith(
 	_draftsMap = draftsMap;
 	_draftCursorsMap = draftCursorsMap;
 	_draftsNotReadMap = draftsNotReadMap;
+	_botStoragesMap = botStoragesMap;
+	_botStoragesNotReadMap = botStoragesNotReadMap;
 
 	_locationsKey = locationsKey;
 	_trustedPeersKey = trustedPeersKey;
@@ -599,6 +619,7 @@ void Account::writeMap() {
 	if (_roundPlaceholderKey) mapSize += sizeof(quint32) + sizeof(quint64);
 	if (_inlineBotsDownloadsKey) mapSize += sizeof(quint32) + sizeof(quint64);
 	if (_mediaLastPlaybackPositionsKey) mapSize += sizeof(quint32) + sizeof(quint64);
+	if (!_botStoragesMap.empty()) mapSize += sizeof(quint32) * 2 + _botStoragesMap.size() * sizeof(quint64) * 2;
 
 	EncryptedDescriptor mapData(mapSize);
 	if (!self.isEmpty()) {
@@ -681,6 +702,12 @@ void Account::writeMap() {
 		mapData.stream << quint32(lskMediaLastPlaybackPositions);
 		mapData.stream << quint64(_mediaLastPlaybackPositionsKey);
 	}
+	if (!_botStoragesMap.empty()) {
+		mapData.stream << quint32(lskBotStorages) << quint32(_botStoragesMap.size());
+		for (const auto &[key, value] : _botStoragesMap) {
+			mapData.stream << quint64(value) << SerializePeerId(key);
+		}
+	}
 	map.writeEncrypted(mapData, _localKey);
 
 	_mapChanged = false;
@@ -693,6 +720,8 @@ void Account::reset() {
 	_draftsMap.clear();
 	_draftCursorsMap.clear();
 	_draftsNotReadMap.clear();
+	_botStoragesMap.clear();
+	_botStoragesNotReadMap.clear();
 	_locationsKey = _trustedPeersKey = 0;
 	_recentStickersKeyOld = 0;
 	_installedStickersKey = 0;
@@ -1147,7 +1176,9 @@ void EnumerateDrafts(
 		} else if (key.isLocal()
 			&& (!supportMode || key.topicRootId())) {
 			const auto i = map.find(
-				Data::DraftKey::Cloud(key.topicRootId()));
+				Data::DraftKey::Cloud(
+					key.topicRootId(),
+					key.monoforumPeerId()));
 			const auto cloud = (i != end(map)) ? i->second.get() : nullptr;
 			if (Data::DraftsAreEqual(draft.get(), cloud)) {
 				continue;
@@ -1397,7 +1428,7 @@ void Account::readDraftCursors(PeerId peerId, Data::HistoryDrafts &map) {
 			? Data::DraftKey::FromSerialized(keyValue)
 			: keysOld
 			? Data::DraftKey::FromSerializedOld(keyValueOld)
-			: Data::DraftKey::Local(0);
+			: Data::DraftKey::Local(MsgId(), PeerId());
 		qint32 position = 0, anchor = 0, scroll = Ui::kQFixedMax;
 		draft.stream >> position >> anchor >> scroll;
 		if (const auto i = map.find(key); i != end(map)) {
@@ -1424,13 +1455,14 @@ void Account::readDraftCursorsLegacy(
 		return;
 	}
 
-	if (const auto i = map.find(Data::DraftKey::Local({})); i != end(map)) {
+	if (const auto i = map.find(Data::DraftKey::Local(MsgId(), PeerId()))
+		; i != end(map)) {
 		i->second->cursor = MessageCursor(
 			localPosition,
 			localAnchor,
 			localScroll);
 	}
-	if (const auto i = map.find(Data::DraftKey::LocalEdit({}))
+	if (const auto i = map.find(Data::DraftKey::LocalEdit(MsgId(), PeerId()))
 		; i != end(map)) {
 		i->second->cursor = MessageCursor(
 			editPosition,
@@ -1443,7 +1475,7 @@ void Account::readDraftsWithCursors(not_null<History*> history) {
 	const auto guard = gsl::finally([&] {
 		if (const auto migrated = history->migrateFrom()) {
 			readDraftsWithCursors(migrated);
-			migrated->clearLocalEditDraft({});
+			migrated->clearLocalEditDraft(MsgId(), PeerId());
 			history->takeLocalDraft(migrated);
 		}
 	});
@@ -1614,10 +1646,11 @@ void Account::readDraftsWithCursorsLegacy(
 		editData.text.size());
 
 	const auto topicRootId = MsgId();
+	const auto monoforumPeerId = PeerId();
 	auto map = base::flat_map<Data::DraftKey, std::unique_ptr<Data::Draft>>();
 	if (!msgData.text.isEmpty() || msgReplyTo) {
 		map.emplace(
-			Data::DraftKey::Local(topicRootId),
+			Data::DraftKey::Local(topicRootId, monoforumPeerId),
 			std::make_unique<Data::Draft>(
 				msgData,
 				FullReplyTo{ FullMsgId(peerId, MsgId(msgReplyTo)) },
@@ -1628,7 +1661,7 @@ void Account::readDraftsWithCursorsLegacy(
 	}
 	if (editMsgId) {
 		map.emplace(
-			Data::DraftKey::LocalEdit(topicRootId),
+			Data::DraftKey::LocalEdit(topicRootId, monoforumPeerId),
 			std::make_unique<Data::Draft>(
 				editData,
 				FullReplyTo{ FullMsgId(peerId, editMsgId) },
@@ -3471,6 +3504,63 @@ void Account::writeInlineBotsDownloads(const QByteArray &bytes) {
 	data.stream << bytes;
 	FileWriteDescriptor file(_inlineBotsDownloadsKey, _basePath);
 	file.writeEncrypted(data, _localKey);
+}
+
+void Account::writeBotStorage(PeerId botId, const QByteArray &serialized) {
+	if (serialized.isEmpty()) {
+		auto i = _botStoragesMap.find(botId);
+		if (i != _botStoragesMap.cend()) {
+			ClearKey(i->second, _basePath);
+			_botStoragesMap.erase(i);
+			writeMapDelayed();
+		}
+		_botStoragesNotReadMap.remove(botId);
+		return;
+	}
+
+	auto i = _botStoragesMap.find(botId);
+	if (i == _botStoragesMap.cend()) {
+		i = _botStoragesMap.emplace(botId, GenerateKey(_basePath)).first;
+		writeMapQueued();
+	}
+
+	auto size = Serialize::bytearraySize(serialized);
+
+	EncryptedDescriptor data(size);
+	data.stream << serialized;
+
+	FileWriteDescriptor file(i->second, _basePath);
+	file.writeEncrypted(data, _localKey);
+
+	_botStoragesNotReadMap.remove(botId);
+}
+
+QByteArray Account::readBotStorage(PeerId botId) {
+	if (!_botStoragesNotReadMap.remove(botId)) {
+		return {};
+	}
+
+	const auto j = _botStoragesMap.find(botId);
+	if (j == _botStoragesMap.cend()) {
+		return {};
+	}
+	FileReadDescriptor storage;
+	if (!ReadEncryptedFile(storage, j->second, _basePath, _localKey)) {
+		ClearKey(j->second, _basePath);
+		_botStoragesMap.erase(j);
+		writeMapDelayed();
+		return {};
+	}
+
+	auto result = QByteArray();
+	storage.stream >> result;
+	if (storage.stream.status() != QDataStream::Ok) {
+		ClearKey(j->second, _basePath);
+		_botStoragesMap.erase(j);
+		writeMapDelayed();
+		return {};
+	}
+	return result;
 }
 
 bool Account::encrypt(

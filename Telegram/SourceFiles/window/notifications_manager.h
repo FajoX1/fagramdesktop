@@ -17,6 +17,7 @@ class History;
 namespace Data {
 class Session;
 class ForumTopic;
+class SavedSublist;
 class Thread;
 struct ItemNotification;
 enum class ItemNotificationType;
@@ -91,6 +92,11 @@ extern base::options::toggle OptionGNotification;
 
 class Manager;
 
+struct ActivateOptions {
+	TextWithTags draft;
+	bool allowNewWindow = false;
+};
+
 class System final {
 public:
 	System();
@@ -104,8 +110,10 @@ public:
 	void checkDelayed();
 	void schedule(Data::ItemNotification notification);
 	void clearFromTopic(not_null<Data::ForumTopic*> topic);
+	void clearFromSublist(not_null<Data::SavedSublist*> sublist);
 	void clearFromHistory(not_null<History*> history);
 	void clearIncomingFromTopic(not_null<Data::ForumTopic*> topic);
+	void clearIncomingFromSublist(not_null<Data::SavedSublist*> sublist);
 	void clearIncomingFromHistory(not_null<History*> history);
 	void clearFromSession(not_null<Main::Session*> session);
 	void clearFromItem(not_null<HistoryItem*> item);
@@ -216,6 +224,9 @@ private:
 	base::flat_map<
 		not_null<Data::ForumTopic*>,
 		rpl::lifetime> _watchedTopics;
+	base::flat_map<
+		not_null<Data::SavedSublist*>,
+		rpl::lifetime> _watchedSublists;
 
 	int _lastForwardedCount = 0;
 	uint64 _lastHistorySessionId = 0;
@@ -232,6 +243,7 @@ public:
 		uint64 sessionId = 0;
 		PeerId peerId = 0;
 		MsgId topicRootId = 0;
+		PeerId monoforumPeerId = 0;
 
 		friend inline auto operator<=>(
 			const ContextId&,
@@ -274,6 +286,9 @@ public:
 	void clearFromTopic(not_null<Data::ForumTopic*> topic) {
 		doClearFromTopic(topic);
 	}
+	void clearFromSublist(not_null<Data::SavedSublist*> sublist) {
+		doClearFromSublist(sublist);
+	}
 	void clearFromHistory(not_null<History*> history) {
 		doClearFromHistory(history);
 	}
@@ -283,7 +298,7 @@ public:
 
 	void notificationActivated(
 		NotificationId id,
-		const TextWithTags &draft = {});
+		ActivateOptions &&options = {});
 	void notificationReplied(NotificationId id, const TextWithTags &reply);
 
 	struct DisplayOptions {
@@ -336,6 +351,8 @@ protected:
 	virtual void doClearAllFast() = 0;
 	virtual void doClearFromItem(not_null<HistoryItem*> item) = 0;
 	virtual void doClearFromTopic(not_null<Data::ForumTopic*> topic) = 0;
+	virtual void doClearFromSublist(
+		not_null<Data::SavedSublist*> sublist) = 0;
 	virtual void doClearFromHistory(not_null<History*> history) = 0;
 	virtual void doClearFromSession(not_null<Main::Session*> session) = 0;
 	[[nodiscard]] virtual bool doSkipToast() const = 0;
@@ -353,9 +370,10 @@ protected:
 	[[nodiscard]] virtual QString accountNameSeparator();
 
 private:
-	void openNotificationMessage(
+	Window::SessionController *openNotificationMessage(
 		not_null<History*> history,
-		MsgId messageId);
+		MsgId messageId,
+		bool openSeparated);
 
 	const not_null<System*> _system;
 
@@ -371,6 +389,7 @@ public:
 	struct NotificationInfo {
 		not_null<PeerData*> peer;
 		MsgId topicRootId = 0;
+		PeerId monoforumPeerId = 0;
 		MsgId itemId = 0;
 		QString title;
 		QString subtitle;
@@ -419,6 +438,8 @@ protected:
 	void doClearFromItem(not_null<HistoryItem*> item) override {
 	}
 	void doClearFromTopic(not_null<Data::ForumTopic*> topic) override {
+	}
+	void doClearFromSublist(not_null<Data::SavedSublist*> sublist) override {
 	}
 	void doClearFromHistory(not_null<History*> history) override {
 	}

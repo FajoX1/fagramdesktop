@@ -5,6 +5,7 @@ the unofficial desktop client based on Telegram Desktop.
 For license and copyright information please follow this link:
 https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 */
+#define _GLIBCXX_USE_CXX11_ABI 0
 #include <cstdio>
 #include <sys/stat.h>
 #include <sys/types.h>

@@ -211,7 +211,6 @@ RecentRow::RecentRow(not_null<PeerData*> peer)
 					st::dialogRowOpenBotRecent.button.style,
 					tr::lng_profile_open_app_short(tr::now));
 			}
-		}
 	}
 	return nullptr;
 }()) {
@@ -287,7 +286,10 @@ QSize RecentRow::rightActionSize() const {
 
 QMargins RecentRow::rightActionMargins() const {
 	if (_mainAppText && _badgeSize.isEmpty()) {
-		return st::dialogRowOpenBotRecent.margin;
+		const auto &st = st::dialogRowOpenBotRecent;
+		auto margins = st.margin;
+		margins.setTop((st::recentPeersItem.height - st.button.height) / 2);
+		return margins;
 	} else if (_badgeSize.isEmpty()) {
 		return {};
 	}
@@ -957,7 +959,7 @@ void MyChannelsController::prepare() {
 	const auto add = [&](not_null<Dialogs::MainList*> list) {
 		for (const auto &row : list->indexed()->all()) {
 			if (const auto history = row->history()) {
-				if (const auto channel = history->peer->asBroadcast()) {
+				if (history->peer->isBroadcast()) {
 					_channels.push_back(history);
 				}
 			}
@@ -986,7 +988,7 @@ void MyChannelsController::prepare() {
 		const auto list = owner->chatsList(folder);
 		for (const auto &row : list->indexed()->all()) {
 			if (const auto history = row->history()) {
-				if (const auto channel = history->peer->asBroadcast()) {
+				if (history->peer->isBroadcast()) {
 					if (ranges::contains(_channels, not_null(history))) {
 						_channels.push_back(history);
 					}

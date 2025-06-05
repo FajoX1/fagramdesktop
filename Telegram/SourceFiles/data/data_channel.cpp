@@ -7,7 +7,10 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 */
 #include "data/data_channel.h"
 
+#include "api/api_credits.h"
 #include "api/api_global_privacy.h"
+#include "api/api_statistics.h"
+#include "base/timer_rpl.h"
 #include "data/components/credits.h"
 #include "data/data_changes.h"
 #include "data/data_channel_admins.h"
@@ -21,6 +24,7 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 #include "data/data_histories.h"
 #include "data/data_group_call.h"
 #include "data/data_message_reactions.h"
+#include "data/data_saved_messages.h"
 #include "data/data_wall_paper.h"
 #include "data/notify/data_notify_settings.h"
 #include "main/main_session.h"
@@ -81,6 +85,29 @@ Data::Forum *MegagroupInfo::forum() const {
 std::unique_ptr<Data::Forum> MegagroupInfo::takeForumData() {
 	if (auto result = base::take(_forum)) {
 		result->history()->forumChanged(result.get());
+		return result;
+	}
+	return nullptr;
+}
+
+void MegagroupInfo::ensureMonoforum(not_null<ChannelData*> that) {
+	if (!_monoforum) {
+		const auto history = that->owner().history(that);
+		_monoforum = std::make_unique<Data::SavedMessages>(
+			&that->owner(),
+			that);
+		history->monoforumChanged(nullptr);
+	}
+}
+
+Data::SavedMessages *MegagroupInfo::monoforum() const {
+	return _monoforum.get();
+}
+
+std::unique_ptr<Data::SavedMessages> MegagroupInfo::takeMonoforumData() {
+	if (auto result = base::take(_monoforum)) {
+		const auto history = result->owner().history(result->parentChat());
+		history->monoforumChanged(result.get());
 		return result;
 	}
 	return nullptr;
@@ -158,6 +185,15 @@ void ChannelData::setAccessHash(uint64 accessHash) {
 }
 
 void ChannelData::setFlags(ChannelDataFlags which) {
+	if (which & Flag::MonoforumAdmin) {
+		which |= Flag::Monoforum;
+	}
+	if (which & (Flag::Forum | Flag::Monoforum)) {
+		which |= Flag::Megagroup;
+	}
+	if (which & Flag::Monoforum) {
+		which &= ~Flag::Forum;
+	}
 	const auto diff = flags() ^ which;
 	if ((which & Flag::Megagroup) && !mgInfo) {
 		mgInfo = std::make_unique<MegagroupInfo>();
@@ -166,11 +202,17 @@ void ChannelData::setFlags(ChannelDataFlags which) {
 	// Let Data::Forum live till the end of _flags.set.
 	// That way the data can be used in changes handler.
 	// Example: render frame for forum auto-closing animation.
-	const auto taken = ((diff & Flag::Forum) && !(which & Flag::Forum))
+	const auto takenForum = ((diff & Flag::Forum) && !(which & Flag::Forum))
 		? mgInfo->takeForumData()
 		: nullptr;
+	const auto takenMonoforum = ((diff & Flag::MonoforumAdmin)
+		&& !(which & Flag::MonoforumAdmin))
+		? mgInfo->takeMonoforumData()
+		: nullptr;
 	const auto wasIn = amIn();
-	if ((diff & Flag::Forum) && (which & Flag::Forum)) {
+	if ((diff & Flag::MonoforumAdmin) && (which & Flag::MonoforumAdmin)) {
+		mgInfo->ensureMonoforum(this);
+	} else if ((diff & Flag::Forum) && (which & Flag::Forum)) {
 		mgInfo->ensureForum(this);
 	}
 	_flags.set(which);
@@ -189,6 +231,7 @@ void ChannelData::setFlags(ChannelDataFlags which) {
 		}
 	}
 	if (diff & (Flag::Forum
+		| Flag::MonoforumAdmin
 		| Flag::CallNotEmpty
 		| Flag::SimilarExpanded
 		| Flag::Signatures
@@ -197,12 +240,14 @@ void ChannelData::setFlags(ChannelDataFlags which) {
 			if (diff & Flag::CallNotEmpty) {
 				history->updateChatListEntry();
 			}
-			if (diff & Flag::Forum) {
+			if (diff & (Flag::Forum | Flag::MonoforumAdmin)) {
 				Core::App().notifications().clearFromHistory(history);
 				history->updateChatListEntryHeight();
 				if (history->inChatList()) {
 					if (const auto forum = this->forum()) {
 						forum->preloadTopics();
+					} else if (const auto monoforum = this->monoforum()) {
+						monoforum->preloadSublists();
 					}
 				}
 			}
@@ -219,7 +264,7 @@ void ChannelData::setFlags(ChannelDataFlags which) {
 			}
 		}
 	}
-	if (const auto raw = taken.get()) {
+	if (const auto raw = takenForum.get()) {
 		owner().forumIcons().clearUserpicsReset(raw);
 	}
 }
@@ -272,22 +317,39 @@ const ChannelLocation *ChannelData::getLocation() const {
 	return mgInfo ? mgInfo->getLocation() : nullptr;
 }
 
-void ChannelData::setLinkedChat(ChannelData *linked) {
-	if (_linkedChat != linked) {
-		_linkedChat = linked;
+void ChannelData::setDiscussionLink(ChannelData *linked) {
+	if (_discussionLink != linked || !_discussionLinkKnown) {
+		_discussionLink = linked;
+		_discussionLinkKnown = true;
 		if (const auto history = owner().historyLoaded(this)) {
 			history->forceFullResize();
 		}
-		session().changes().peerUpdated(this, UpdateFlag::ChannelLinkedChat);
+		session().changes().peerUpdated(this, UpdateFlag::DiscussionLink);
 	}
 }
 
-ChannelData *ChannelData::linkedChat() const {
-	return _linkedChat.value_or(nullptr);
+ChannelData *ChannelData::discussionLink() const {
+	return _discussionLink;
 }
 
-bool ChannelData::linkedChatKnown() const {
-	return _linkedChat.has_value();
+bool ChannelData::discussionLinkKnown() const {
+	return _discussionLinkKnown;
+}
+
+void ChannelData::setMonoforumLink(ChannelData *link) {
+	if (_monoforumLink || !link) {
+		return;
+	}
+	_monoforumLink = link;
+	link->setMonoforumLink(this);
+	session().changes().peerUpdated(this, UpdateFlag::MonoforumLink);
+	if (isMegagroup() && link->canAccessMonoforum()) {
+		setFlags(flags() | Flag::MonoforumAdmin);
+	}
+}
+
+ChannelData *ChannelData::monoforumLink() const {
+	return _monoforumLink;
 }
 
 void ChannelData::setMembersCount(int newMembersCount) {
@@ -344,6 +406,11 @@ void ChannelData::setPendingRequestsCount(
 		_recentRequesters = std::move(recentRequesters);
 		session().changes().peerUpdated(this, UpdateFlag::PendingRequests);
 	}
+}
+
+bool ChannelData::useSubsectionTabs() const {
+	return isForum()
+		&& (flags() & ChannelDataFlag::ForumTabs);
 }
 
 ChatRestrictionsInfo ChannelData::KickedRestrictedRights(
@@ -585,6 +652,9 @@ bool ChannelData::canPostStories() const {
 }
 
 bool ChannelData::canEditStories() const {
+	if (isMonoforum()) {
+		return false;
+	}
 	return amCreator()
 		|| (adminRights() & AdminRight::EditStories);
 }
@@ -592,6 +662,10 @@ bool ChannelData::canEditStories() const {
 bool ChannelData::canDeleteStories() const {
 	return amCreator()
 		|| (adminRights() & AdminRight::DeleteStories);
+}
+
+bool ChannelData::canAccessMonoforum() const {
+	return canPostMessages();
 }
 
 bool ChannelData::canPostPaidMedia() const {
@@ -607,7 +681,9 @@ bool ChannelData::hiddenPreHistory() const {
 }
 
 bool ChannelData::canAddMembers() const {
-	return isMegagroup()
+	return isMonoforum()
+		? false
+		: isMegagroup()
 		? !amRestricted(ChatRestriction::AddParticipants)
 		: ((adminRights() & AdminRight::InviteByLinkOrAdd) || amCreator());
 }
@@ -649,7 +725,11 @@ bool ChannelData::canEditPermissions() const {
 }
 
 bool ChannelData::canEditSignatures() const {
-	return isChannel() && canEditInformation();
+	return isBroadcast() && canEditInformation();
+}
+
+bool ChannelData::canEditAutoTranslate() const {
+	return isBroadcast() && canEditInformation();
 }
 
 bool ChannelData::canEditPreHistoryHidden() const {
@@ -768,6 +848,11 @@ void ChannelData::setAdminRights(ChatAdminRights rights) {
 	session().changes().peerUpdated(
 		this,
 		UpdateFlag::Rights | UpdateFlag::Admins | UpdateFlag::BannedUsers);
+	if (isBroadcast() && _monoforumLink) {
+		const auto flags = _monoforumLink->flags();
+		_monoforumLink->setFlags((flags & ~Flag::MonoforumAdmin)
+			| (canAccessMonoforum() ? Flag::MonoforumAdmin : Flag()));
+	}
 }
 
 void ChannelData::setRestrictions(ChatRestrictionsInfo rights) {
@@ -862,15 +947,12 @@ void ChannelData::growSlowmodeLastMessage(TimeId when) {
 }
 
 int ChannelData::starsPerMessage() const {
-	if (const auto info = mgInfo.get()) {
-		return info->_starsPerMessage;
-	}
-	return 0;
+	return _starsPerMessage;
 }
 
 void ChannelData::setStarsPerMessage(int stars) {
-	if (mgInfo && starsPerMessage() != stars) {
-		mgInfo->_starsPerMessage = stars;
+	if (_starsPerMessage != stars) {
+		_starsPerMessage = stars;
 		session().changes().peerUpdated(this, UpdateFlag::StarsPerMessage);
 	}
 	checkTrustedPayForMessage();
@@ -956,7 +1038,7 @@ QString ChannelData::invitePeekHash() const {
 }
 
 void ChannelData::privateErrorReceived() {
-	if (const auto expires = invitePeekExpires()) {
+	if (invitePeekExpires()) {
 		const auto hash = invitePeekHash();
 		for (const auto &window : session().windows()) {
 			clearInvitePeek();
@@ -1001,10 +1083,13 @@ void ChannelData::setGroupCall(
 			data.vid().v,
 			data.vaccess_hash().v,
 			scheduleDate,
-			rtmp);
+			rtmp,
+			false); // conference
 		owner().registerGroupCall(_call.get());
 		session().changes().peerUpdated(this, UpdateFlag::GroupCall);
 		addFlags(Flag::CallActive);
+	}, [&](const auto &) {
+		clearGroupCall();
 	});
 }
 
@@ -1226,9 +1311,9 @@ void ApplyChannelUpdate(
 		channel->setLocation(MTP_channelLocationEmpty());
 	}
 	if (const auto chat = update.vlinked_chat_id()) {
-		channel->setLinkedChat(channel->owner().channelLoaded(chat->v));
+		channel->setDiscussionLink(channel->owner().channelLoaded(chat->v));
 	} else {
-		channel->setLinkedChat(nullptr);
+		channel->setDiscussionLink(nullptr);
 	}
 	if (const auto history = channel->owner().historyLoaded(channel)) {
 		if (const auto available = update.vavailable_min_id()) {
@@ -1348,6 +1433,41 @@ void ApplyChannelUpdate(
 			Data::WallPaper::Create(&channel->session(), *paper));
 	} else {
 		channel->setWallPaper({});
+	}
+
+	if ((channel->flags() & Flag::CanViewRevenue)
+		|| (channel->flags() & Flag::CanViewCreditsRevenue)) {
+		static constexpr auto kTimeout = crl::time(60000);
+		const auto id = channel->id;
+		const auto weak = base::make_weak(&channel->session());
+		const auto creditsLoadLifetime = std::make_shared<rpl::lifetime>();
+		const auto creditsLoad
+			= creditsLoadLifetime->make_state<Api::CreditsStatus>(channel);
+		creditsLoad->request({}, [=](Data::CreditsStatusSlice slice) {
+			if (const auto strong = weak.get()) {
+				strong->credits().apply(id, slice.balance);
+			}
+			creditsLoadLifetime->destroy();
+		});
+		base::timer_once(kTimeout) | rpl::start_with_next([=] {
+			creditsLoadLifetime->destroy();
+		}, *creditsLoadLifetime);
+		const auto currencyLoadLifetime = std::make_shared<rpl::lifetime>();
+		const auto currencyLoad
+			= currencyLoadLifetime->make_state<Api::EarnStatistics>(channel);
+		const auto apply = [=](Data::EarnInt balance) {
+			if (const auto strong = weak.get()) {
+				strong->credits().applyCurrency(id, balance);
+			}
+			currencyLoadLifetime->destroy();
+		};
+		currencyLoad->request() | rpl::start_with_error_done(
+			[=](const QString &error) { apply(0); },
+			[=] { apply(currencyLoad->data().currentBalance); },
+			*currencyLoadLifetime);
+		base::timer_once(kTimeout) | rpl::start_with_next([=] {
+			currencyLoadLifetime->destroy();
+		}, *currencyLoadLifetime);
 	}
 
 	// For clearUpTill() call.

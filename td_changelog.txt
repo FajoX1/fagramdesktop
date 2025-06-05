@@ -1,3 +1,30 @@
+5.15 (04.06.25)
+
+- Send Direct Messages to Channels.
+- Enable New Tab Layout for Topics.
+- Create Polls with Up To 12 Options.
+
+5.14.3 (18.05.25)
+
+- Fix stale birthday suggestions removing.
+- Fix notification click opening a new window.
+
+5.14.2 (08.05.25)
+
+- Buy Rare Gifts in the Marketplace.
+- Sell Your Gifts for Stars.
+- Set Your Channel to Auto-Translate.
+
+5.14.1 (01.05.25)
+
+- Fix launching on Windows 7.
+
+5.14 (01.05.25)
+
+- Secure Group Calls Made Easy.
+- Automated Business Accounts.
+- New Gifts Settings.
+
 5.13.1 (26.03.25)
 
 - Fix crash in group/channel stories.

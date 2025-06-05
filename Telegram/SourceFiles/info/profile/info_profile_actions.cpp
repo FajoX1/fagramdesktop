@@ -76,6 +76,7 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 #include "ui/boxes/peer_qr_box.h"
 #include "ui/boxes/report_box_graphics.h"
 #include "ui/controls/userpic_button.h"
+#include "ui/effects/credits_graphics.h"
 #include "ui/effects/toggle_arrow.h"
 #include "ui/painter.h"
 #include "ui/rect.h"
@@ -117,6 +118,12 @@ base::options::toggle ShowPeerIdBelowAbout({
 	.name = "Show Peer IDs in Profile",
 	.description = "Show peer IDs from API below their Bio / Description."
 		" Add contact IDs to exported data.",
+});
+
+base::options::toggle ShowChannelJoinedBelowAbout({
+	.id = kOptionShowChannelJoinedBelowAbout,
+	.name = "Show Channel Joined Date in Profile",
+	.description = "Show when you join Channel under its Description.",
 });
 
 [[nodiscard]] rpl::producer<TextWithEntities> UsernamesSubtext(
@@ -189,7 +196,7 @@ base::options::toggle ShowPeerIdBelowAbout({
 	return result;
 }
 
-[[nodiscard]] rpl::producer<TextWithEntities> AboutWithIdValue(
+[[nodiscard]] rpl::producer<TextWithEntities> AboutWithAdvancedValue(
 		not_null<PeerData*> peer) {
 
 	return AboutValue(
@@ -198,9 +205,29 @@ base::options::toggle ShowPeerIdBelowAbout({
 	/*	if (!ShowPeerIdBelowAbout.value()) {
 			return std::move(value);
 		}
-		using namespace Ui::Text;
-		if (!value.empty()) {
-			value.append("\n\n");
+		if (ShowChannelJoinedBelowAbout.value()) {
+			if (const auto channel = peer->asChannel()) {
+				if (!channel->amCreator() && channel->inviteDate) {
+					if (!value.empty()) {
+						if (ShowPeerIdBelowAbout.value()) {
+							value.append("\n");
+						} else {
+							value.append("\n\n");
+						}
+					}
+					using namespace Ui::Text;
+					value.append((channel->isMegagroup()
+						? tr::lng_you_joined_group
+						: tr::lng_action_you_joined)(
+							tr::now,
+							Ui::Text::Italic));
+					value.append(Italic(": "));
+					const auto raw = channel->inviteDate;
+					value.append(Link(
+						Italic(langDateTimeFull(base::unixtime::parse(raw))),
+						"internal:~join_date~:show:" + QString::number(raw)));
+				}
+			}
 		}
 		value.append(Italic(u"id: "_q));
 		const auto raw = peer->id.value & PeerId::kChatTypeMask;
@@ -863,15 +890,16 @@ rpl::producer<uint64> AddCurrencyAction(
 			= std::make_shared<rpl::lifetime>();
 		const auto currencyLoad
 			= currencyLoadLifetime->make_state<Api::EarnStatistics>(user);
-		currencyLoad->request(
-		) | rpl::start_with_error_done([=](const QString &error) {
-			currencyLoadLifetime->destroy();
-		}, [=] {
-			if (const auto strong = weak.data()) {
-				state->balance = currencyLoad->data().currentBalance;
+		const auto done = [=](Data::EarnInt balance) {
+			if ([[maybe_unused]] const auto strong = weak.data()) {
+				state->balance = balance;
 				currencyLoadLifetime->destroy();
 			}
-		}, *currencyLoadLifetime);
+		};
+		currencyLoad->request() | rpl::start_with_error_done(
+			[=](const QString &error) { done(0); },
+			[=] { done(currencyLoad->data().currentBalance); },
+			*currencyLoadLifetime);
 	}
 	const auto &st = st::infoSharedMediaButton;
 	const auto button = wrapButton->entity();
@@ -891,7 +919,7 @@ rpl::producer<uint64> AddCurrencyAction(
 	) | rpl::start_with_next([=, &st](
 			int width,
 			const QString &button,
-			uint64 balance) {
+			Data::EarnInt balance) {
 		const auto available = width
 			- rect::m::sum::h(st.padding)
 			- st.style.font->width(button)
@@ -1184,6 +1212,23 @@ object_ptr<Ui::RpWidget> DetailsFiller::setupInfo() {
 			return false;
 		} else if (SetClickContext<CashtagClickHandler>(handler, context)) {
 			return false;
+		} else if (handler->url().startsWith(u"internal:~join_date~:"_q)) {
+			const auto joinDate = handler->url().split(
+				u"show:"_q,
+				Qt::SkipEmptyParts).last();
+			if (!joinDate.isEmpty()) {
+				const auto weak = base::make_weak(window);
+				window->session().api().resolveJumpToDate(
+					Dialogs::Key(peer->owner().history(peer)),
+					base::unixtime::parse(joinDate.toULongLong()).date(),
+					[=](not_null<PeerData*> p, MsgId m) {
+						const auto f = Window::SectionShow::Way::Forward;
+						if (const auto strong = weak.get()) {
+							strong->showPeerHistory(p, f, m);
+						}
+					});
+				return false;
+			}
 		} else if (SetClickContext<UrlClickHandler>(handler, context)) {
 			return false;
 		}
@@ -1392,8 +1437,8 @@ object_ptr<Ui::RpWidget> DetailsFiller::setupInfo() {
 			? tr::lng_info_about_label()
 			: tr::lng_info_bio_label();
 		addTranslateToMenu(
-			addInfoLine(std::move(label), AboutWithIdValue(user)).text,
-			AboutWithIdValue(user));
+			addInfoLine(std::move(label), AboutWithAdvancedValue(user)).text,
+			AboutWithAdvancedValue(user));
 
 		const auto usernameLine = addInfoOneLine(
 			UsernamesSubtext(_peer, tr::lng_info_username_label()),
@@ -1558,9 +1603,9 @@ object_ptr<Ui::RpWidget> DetailsFiller::setupInfo() {
 
 		const auto about = addInfoLine(tr::lng_info_about_label(), _topic
 			? rpl::single(TextWithEntities())
-			: AboutWithIdValue(_peer));
+			: AboutWithAdvancedValue(_peer));
 		if (!_topic) {
-			addTranslateToMenu(about.text, AboutWithIdValue(_peer));
+			addTranslateToMenu(about.text, AboutWithAdvancedValue(_peer));
 		}
 
 		bool show_peer_id = FASettings::JsonSettings::GetBool("show_peer_id");
@@ -1795,9 +1840,14 @@ object_ptr<Ui::RpWidget> DetailsFiller::setupPersonalChannel(
 						style::al_left);
 					return;
 				}
-				if (!state->view.prepared(item, nullptr)) {
+				if (!state->view.prepared(item, nullptr, nullptr)) {
 					const auto repaint = [=] { preview->update(); };
-					state->view.prepare(item, nullptr, repaint, {});
+					state->view.prepare(
+						item,
+						nullptr,
+						nullptr,
+						repaint,
+						{});
 				}
 				state->view.paint(p, preview->rect(), {
 					.st = &st::defaultDialogRow,
@@ -2167,7 +2217,9 @@ Ui::MultiSlideTracker DetailsFiller::fillUserButtons(
 			tracker);
 	};
 
-	addSendMessageButton();
+	if (!user->isVerifyCodes()) {
+		addSendMessageButton();
+	}
 	addReportReaction(tracker);
 
 	return tracker;
@@ -2705,6 +2757,7 @@ object_ptr<Ui::RpWidget> ActionsFiller::fill() {
 } // namespace
 
 const char kOptionShowPeerIdBelowAbout[] = "show-peer-id-below-about";
+const char kOptionShowChannelJoinedBelowAbout[] = "show-channel-joined-below-about";
 
 object_ptr<Ui::RpWidget> SetupDetails(
 		not_null<Controller*> controller,
@@ -2848,6 +2901,92 @@ object_ptr<Ui::RpWidget> SetupChannelMembersAndManage(
 		admins,
 		st::menuIconAdmin,
 		st::infoChannelAdminsIconPosition);
+
+	const auto canViewBalance = false
+		|| (channel->flags() & ChannelDataFlag::CanViewRevenue)
+		|| (channel->flags() & ChannelDataFlag::CanViewCreditsRevenue)
+		|| (channel->loadedStatus() != ChannelData::LoadedStatus::Full);
+	if (canViewBalance) {
+		const auto balanceWrap = result->entity()->add(
+			object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
+				result->entity(),
+				object_ptr<Ui::VerticalLayout>(result->entity())));
+		auto refreshed = channel->session().credits().refreshedByPeerId(
+			channel->id);
+		auto creditsValue = rpl::single(
+			rpl::empty_value()
+		) | rpl::then(rpl::duplicate(refreshed)) | rpl::map([=] {
+			return channel->session().credits().balance(channel->id).whole();
+		});
+		auto currencyValue = rpl::single(
+			rpl::empty_value()
+		) | rpl::then(rpl::duplicate(refreshed)) | rpl::map([=] {
+			return channel->session().credits().balanceCurrency(channel->id);
+		});
+		balanceWrap->toggleOn(
+			rpl::combine(
+				rpl::duplicate(creditsValue),
+				rpl::duplicate(currencyValue)
+			) | rpl::map(rpl::mappers::_1 > 0 || rpl::mappers::_2 > 0),
+			anim::type::normal);
+		balanceWrap->finishAnimating();
+
+		const auto &st = st::infoSharedMediaButton;
+
+		auto customEmojiFactory = [height = st.style.font->height,
+				font = st.rightLabel.style.font,
+				color = st.rightLabel.textFg->c](
+			QStringView data,
+			const Ui::Text::MarkedContext &context
+		) -> std::unique_ptr<Ui::Text::CustomEmoji> {
+			return (data == Ui::kCreditsCurrency)
+				? Ui::MakeCreditsIconEmoji(height, 1)
+				: std::make_unique<Ui::Text::ShiftedEmoji>(
+					Ui::Earn::MakeCurrencyIconEmoji(font, color),
+					QPoint(0, st::channelEarnCurrencyCommonMargins.top()));
+		};
+		const auto context = Ui::Text::MarkedContext{
+			.customEmojiFactory = std::move(customEmojiFactory),
+		};
+
+		const auto balance = balanceWrap->entity();
+		const auto button = AddActionButton(
+			balance,
+			tr::lng_manage_peer_bot_balance(),
+			rpl::single(true),
+			[=] { controller->showSection(Info::ChannelEarn::Make(peer)); },
+			nullptr);
+
+		::Settings::CreateRightLabel(
+			button->entity(),
+			rpl::combine(
+				std::move(creditsValue),
+				std::move(currencyValue)
+			) | rpl::map([](uint64 credits, uint64 currency) {
+				auto creditsText = (credits > 0)
+					? Ui::Text::SingleCustomEmoji(Ui::kCreditsCurrency)
+						.append(QChar(' '))
+						.append(QString::number(credits))
+					: TextWithEntities();
+				auto currencyText = (currency > 0)
+					? Ui::Text::SingleCustomEmoji("_")
+						.append(QChar(' '))
+						.append(Info::ChannelEarn::MajorPart(currency))
+						.append(Info::ChannelEarn::MinorPart(currency))
+					: TextWithEntities();
+				return currencyText
+					.append(QChar(' '))
+					.append(std::move(creditsText));
+			}),
+			st,
+			tr::lng_manage_peer_bot_balance(),
+			context);
+
+		object_ptr<FloatingIcon>(
+			balance,
+			st::menuIconEarn,
+			st::infoChannelAdminsIconPosition);
+	}
 
 	if (EditPeerInfoBox::Available(channel)) {
 		const auto sessionController = controller->parentController();

@@ -90,6 +90,7 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 #include "data/data_forum.h"
 #include "data/data_forum_topic.h"
 #include "data/data_user.h"
+#include "data/data_saved_messages.h"
 #include "data/data_saved_sublist.h"
 #include "data/data_histories.h"
 #include "data/data_chat_filters.h"
@@ -167,7 +168,7 @@ constexpr auto kMaxUnreadWithoutConfirmation = 1000;
 base::options::toggle ViewProfileInChatsListContextMenu({
 	.id = kOptionViewProfileInChatsListContextMenu,
 	.name = "Add \"View Profile\"",
-	.description = "Add \"View Profile\" to context menu in chats list",
+	.description = "Add \"View Profile\" to context menu in chat list",
 });
 
 void SetActionText(not_null<QAction*> action, rpl::producer<QString> &&text) {
@@ -315,6 +316,7 @@ private:
 	void addBlockUser();
 	void addGoToFirstMessage();
 	void addViewDiscussion();
+	void addDirectMessages();
 	void addToggleTopicClosed();
 	void addExportChat();
 	void addTranslate();
@@ -413,7 +415,8 @@ bool PinnedLimitReached(
 
 void TogglePinnedThread(
 		not_null<Window::SessionController*> controller,
-		not_null<Dialogs::Entry*> entry) {
+		not_null<Dialogs::Entry*> entry,
+		Fn<void()> onToggled) {
 	if (!entry->folderKnown()) {
 		return;
 	}
@@ -433,6 +436,9 @@ void TogglePinnedThread(
 			MTP_inputDialogPeer(history->peer->input)
 		)).done([=] {
 			owner->notifyPinnedDialogsOrderUpdated();
+			if (onToggled) {
+				onToggled();
+			}
 		}).send();
 		if (isPinned) {
 			controller->content()->dialogsToUp();
@@ -444,6 +450,9 @@ void TogglePinnedThread(
 			MTP_bool(isPinned)
 		)).done([=](const MTPUpdates &result) {
 			owner->session().api().applyUpdates(result);
+			if (onToggled) {
+				onToggled();
+			}
 		}).send();
 	} else if (const auto sublist = entry->asSublist()) {
 		const auto flags = isPinned
@@ -451,9 +460,12 @@ void TogglePinnedThread(
 			: MTPmessages_ToggleSavedDialogPin::Flag(0);
 		owner->session().api().request(MTPmessages_ToggleSavedDialogPin(
 			MTP_flags(flags),
-			MTP_inputDialogPeer(sublist->peer()->input)
+			MTP_inputDialogPeer(sublist->sublistPeer()->input)
 		)).done([=] {
 			owner->notifyPinnedDialogsOrderUpdated();
+			if (onToggled) {
+				onToggled();
+			}
 		}).send();
 		//if (isPinned) {
 		//	controller->content()->dialogsToUp();
@@ -507,6 +519,12 @@ void Filler::addToggleTopicClosed() {
 void Filler::addTogglePin() {
 	if ((!_sublist && !_peer) || (_topic && !_topic->canTogglePinned())) {
 		return;
+	} else if (_request.section == Section::SubsectionTabsMenu
+		&& !_sublist
+		&& !_topic) {
+		return;
+	} else if (_sublist && !_peer->isSelf()) {
+		return;
 	}
 	const auto controller = _controller;
 	const auto filterId = _request.filterId;
@@ -522,7 +540,7 @@ void Filler::addTogglePin() {
 	const auto weak = base::make_weak(entry);
 	const auto pinToggle = [=] {
 		if (const auto strong = weak.get()) {
-			TogglePinnedThread(controller, strong, filterId);
+			TogglePinnedThread(controller, strong, filterId, nullptr);
 		}
 	};
 	_addAction(
@@ -534,7 +552,10 @@ void Filler::addTogglePin() {
 }
 
 void Filler::addToggleMuteSubmenu(bool addSeparator) {
-	if (!_thread || _thread->peer()->isSelf()) {
+	if (!_thread
+		|| _thread->peer()->isSelf()
+		|| _thread->asSublist()
+		|| (_thread->asHistory() && _thread->asHistory()->isForum())) {
 		return;
 	}
 	PeerMenuAddMuteSubmenuAction(_controller, _thread, _addAction);
@@ -558,16 +579,18 @@ void Filler::addSupportInfo() {
 }
 
 void Filler::addInfo() {
-	if (_peer
-		&& (_peer->isSelf()
-			|| _peer->isRepliesChat()
-			|| _peer->isVerifyCodes())) {
+	const auto sublist = _thread ? _thread->asSublist() : nullptr;
+	const auto infoPeer = sublist ? sublist->sublistPeer().get() : _peer;
+	if (infoPeer
+		&& (infoPeer->isSelf()
+			|| infoPeer->isRepliesChat()
+			|| infoPeer->isVerifyCodes())) {
 		return;
 	} else if (!_thread) {
 		return;
 	} else if (_controller->adaptive().isThreeColumn()) {
 		const auto thread = _controller->activeChatCurrent().thread();
-		if (thread && thread == _thread) {
+		if (thread && !thread->asSublist() && thread == _thread) {
 			if (Core::App().settings().thirdSectionInfoEnabled()
 				|| Core::App().settings().tabbedReplacedWithInfo()) {
 				return;
@@ -578,16 +601,16 @@ void Filler::addInfo() {
 	const auto weak = base::make_weak(_thread);
 	const auto text = _thread->asTopic()
 		? tr::lng_context_view_topic(tr::now)
-		: (_peer->isChat() || _peer->isMegagroup())
+		: (infoPeer->isChat() || infoPeer->isMegagroup())
 		? tr::lng_context_view_group(tr::now)
-		: _peer->isUser()
+		: infoPeer->isUser()
 		? tr::lng_context_view_profile(tr::now)
 		: tr::lng_context_view_channel(tr::now);
 	_addAction(text, [=] {
 		if (const auto strong = weak.get()) {
 			controller->showPeerInfo(strong);
 		}
-	}, _peer->isUser() ? &st::menuIconProfile : &st::menuIconInfo);
+	}, infoPeer->isUser() ? &st::menuIconProfile : &st::menuIconInfo);
 }
 
 void Filler::addStoryArchive() {
@@ -598,7 +621,7 @@ void Filler::addStoryArchive() {
 	const auto controller = _controller;
 	const auto weak = base::make_weak(_thread);
 	_addAction(tr::lng_stories_archive_button(tr::now), [=] {
-		if (const auto strong = weak.get()) {
+		if ([[maybe_unused]] const auto strong = weak.get()) {
 			controller->showSection(Info::Stories::Make(
 				channel,
 				Info::Stories::Tab::Archive));
@@ -614,6 +637,10 @@ void Filler::addToggleFolder() {
 		|| !history->owner().chatsFilters().has()
 		|| !history->inChatList()) {
 		return;
+	} else if (_request.section == Section::SubsectionTabsMenu
+		&& !_sublist
+		&& !_topic) {
+		return;
 	}
 	_addAction(PeerMenuCallback::Args{
 		.text = tr::lng_filters_menu_add(tr::now),
@@ -628,12 +655,9 @@ void Filler::addToggleFolder() {
 
 void Filler::addToggleUnreadMark() {
 	const auto peer = _peer;
-	const auto history = _request.key.history();
-	if (!_thread) {
-		return;
-	}
 	const auto unread = IsUnreadThread(_thread);
-	if ((_thread->asTopic() || peer->isForum()) && !unread) {
+	const auto history = _request.key.history();
+	if (!_thread || !_thread->canToggleUnread(unread)) {
 		return;
 	}
 	const auto weak = base::make_weak(_thread);
@@ -647,6 +671,8 @@ void Filler::addToggleUnreadMark() {
 		}
 		if (unread) {
 			MarkAsReadThread(thread);
+		} else if (const auto sublist = thread->asSublist()) {
+			peer->owner().histories().changeSublistUnreadMark(sublist, true);
 		} else if (history) {
 			peer->owner().histories().changeDialogUnreadMark(history, true);
 		}
@@ -668,10 +694,9 @@ void Filler::addNewWindow() {
 		_addAction(tr::lng_context_new_window(tr::now), [=] {
 			Ui::PreventDelayedActivation();
 			if (const auto sublist = weak.get()) {
-				const auto peer = sublist->peer();
 				controller->showInNewWindow(SeparateId(
 					SeparateType::SavedSublist,
-					peer->owner().history(peer)));
+					sublist));
 			}
 		}, &st::menuIconNewWindow);
 		AddSeparatorAndShiftUp(_addAction);
@@ -692,7 +717,9 @@ void Filler::addNewWindow() {
 	_addAction(tr::lng_context_new_window(tr::now), [=] {
 		Ui::PreventDelayedActivation();
 		if (const auto strong = weak.get()) {
-			const auto forum = !strong->asTopic() && peer->isForum();
+			const auto forum = !strong->asTopic()
+				&& peer->isForum()
+				&& !peer->asChannel()->useSubsectionTabs();
 			controller->showInNewWindow(SeparateId(
 				forum ? SeparateType::Forum : SeparateType::Chat,
 				strong));
@@ -702,7 +729,9 @@ void Filler::addNewWindow() {
 }
 
 void Filler::addToggleArchive() {
-	if (!_peer || _topic) {
+	if (!_peer
+		|| _topic
+		|| _request.section == Section::SubsectionTabsMenu) {
 		return;
 	}
 	const auto peer = _peer;
@@ -734,7 +763,7 @@ void Filler::addToggleArchive() {
 }
 
 void Filler::addClearHistory() {
-	if (_topic) {
+	if (_topic || _peer->isMonoforum()) {
 		return;
 	}
 	const auto channel = _peer->asChannel();
@@ -754,14 +783,16 @@ void Filler::addClearHistory() {
 }
 
 void Filler::addDeleteChat() {
-	if (_topic || _peer->isChannel()) {
+	if (_topic || (!_sublist && _peer->isChannel())) {
 		return;
 	}
 	_addAction({
-		.text = (_peer->isUser()
+		.text = ((_peer->isUser() || _sublist)
 			? tr::lng_profile_delete_conversation(tr::now)
 			: tr::lng_profile_clear_and_exit(tr::now)),
-		.handler = DeleteAndLeaveHandler(_controller, _peer),
+		.handler = (_sublist
+			? DeleteSublistHandler(_controller, _sublist)
+			: DeleteAndLeaveHandler(_controller, _peer)),
 		.icon = &st::menuIconDeleteAttention,
 		.isAttention = true,
 	});
@@ -769,7 +800,7 @@ void Filler::addDeleteChat() {
 
 void Filler::addLeaveChat() {
 	const auto channel = _peer->asChannel();
-	if (_topic || !channel || !channel->amIn()) {
+	if (_topic || _sublist || !channel || !channel->amIn()) {
 		return;
 	}
 	_addAction({
@@ -860,7 +891,7 @@ void Filler::addViewDiscussion() {
 	if (!channel) {
 		return;
 	}
-	const auto chat = channel->linkedChat();
+	const auto chat = channel->discussionLink();
 	if (!chat) {
 		return;
 	}
@@ -874,6 +905,23 @@ void Filler::addViewDiscussion() {
 			chat,
 			Window::SectionShow::Way::Forward);
 	}, &st::menuIconDiscussion);
+}
+
+void Filler::addDirectMessages() {
+	const auto channel = _peer->asBroadcast();
+	if (!channel) {
+		return;
+	}
+	const auto monoforum = channel->broadcastMonoforum();
+	if (!monoforum || !monoforum->amMonoforumAdmin()) {
+		return;
+	}
+	const auto navigation = _controller;
+	_addAction(tr::lng_profile_direct_messages(tr::now), [=] {
+		navigation->showPeerHistory(
+			monoforum,
+			Window::SectionShow::Way::Forward);
+	}, &st::menuIconChatDiscuss);
 }
 
 void Filler::addExportChat() {
@@ -1093,6 +1141,9 @@ void Filler::addManageChat() {
 
 void Filler::addBoostChat() {
 	if (const auto channel = _peer->asChannel()) {
+		if (channel->isMonoforum()) {
+			return;
+		}
 		const auto text = channel->isMegagroup()
 			? tr::lng_boost_group_button(tr::now)
 			: tr::lng_boost_channel_button(tr::now);
@@ -1107,6 +1158,9 @@ void Filler::addBoostChat() {
 
 void Filler::addViewStatistics() {
 	if (const auto channel = _peer->asChannel()) {
+		if (channel->isMonoforum()) {
+			return;
+		}
 		const auto controller = _controller;
 		const auto weak = base::make_weak(_thread);
 		const auto peer = _peer;
@@ -1117,7 +1171,7 @@ void Filler::addViewStatistics() {
 			= (channel->flags() & Flag::CanViewCreditsRevenue);
 		if (canGetStats) {
 			_addAction(tr::lng_stats_title(tr::now), [=] {
-				if (const auto strong = weak.get()) {
+				if ([[maybe_unused]] const auto strong = weak.get()) {
 					using namespace Info;
 					controller->showSection(Statistics::Make(peer, {}, {}));
 				}
@@ -1127,14 +1181,14 @@ void Filler::addViewStatistics() {
 			|| channel->amCreator()
 			|| channel->canPostStories()) {
 			_addAction(tr::lng_boosts_title(tr::now), [=] {
-				if (const auto strong = weak.get()) {
+				if ([[maybe_unused]] const auto strong = weak.get()) {
 					controller->showSection(Info::Boosts::Make(peer));
 				}
 			}, &st::menuIconBoosts);
 		}
 		if (canViewEarn || canViewCreditsEarn) {
 			_addAction(tr::lng_channel_earn_title(tr::now), [=] {
-				if (const auto strong = weak.get()) {
+				if ([[maybe_unused]] const auto strong = weak.get()) {
 					controller->showSection(Info::ChannelEarn::Make(peer));
 				}
 			}, &st::menuIconEarn);
@@ -1207,6 +1261,9 @@ void Filler::addCreatePoll() {
 }
 
 void Filler::addThemeEdit() {
+	if (_peer->isVerifyCodes() || _peer->isRepliesChat()) {
+		return;
+	}
 	const auto user = _peer->asUser();
 	if (!user || user->isInaccessible()) {
 		return;
@@ -1222,7 +1279,7 @@ void Filler::addThemeEdit() {
 }
 
 void Filler::addTTLSubmenu(bool addSeparator) {
-	if (_thread->asTopic()) {
+	if (_thread->asTopic() || !_peer || _peer->isMonoforum()) {
 		return; // #TODO later forum
 	}
 	const auto validator = TTLMenu::TTLValidator(
@@ -1271,7 +1328,7 @@ void Filler::addSendGift() {
 void Filler::fill() {
 	if (_folder) {
 		fillArchiveActions();
-	} else if (_sublist) {
+	} else if (_sublist && _peer->isSelf()) {
 		fillSavedSublistActions();
 	} else switch (_request.section) {
 	case Section::ChatsList: fillChatsListActions(); break;
@@ -1279,7 +1336,8 @@ void Filler::fill() {
 	case Section::Profile: fillProfileActions(); break;
 	case Section::Replies: fillRepliesActions(); break;
 	case Section::Scheduled: fillScheduledActions(); break;
-	case Section::ContextMenu: fillContextMenuActions(); break;
+	case Section::ContextMenu:
+	case Section::SubsectionTabsMenu: fillContextMenuActions(); break;
 	default: Unexpected("_request.section in Filler::fill.");
 	}
 }
@@ -1348,6 +1406,7 @@ void Filler::addViewAsMessages() {
 void Filler::addViewAsTopics() {
 	if (!_peer
 		|| !_peer->isForum()
+		|| (_peer->asChannel()->flags() & ChannelDataFlag::ForumTabs)
 		|| !_controller->adaptive().isOneColumn()) {
 		return;
 	}
@@ -1445,6 +1504,7 @@ void Filler::fillContextMenuActions() {
 
 void Filler::fillHistoryActions() {
 	addToggleMuteSubmenu(true);
+	addCreateTopic();
 	addInfo();
 	addViewAsTopics();
 	addManageChat();
@@ -1455,6 +1515,7 @@ void Filler::fillHistoryActions() {
 	addThemeEdit();
 	addViewDiscussion();
 	addGoToFirstMessage();
+	addDirectMessages();
 	addExportChat();
 	addTranslate();
 	addReport();
@@ -1480,6 +1541,7 @@ void Filler::fillProfileActions() {
 	addToggleTopicClosed();
 	addViewDiscussion();
 	addGoToFirstMessage();
+	addDirectMessages();
 	addExportChat();
 	addToggleFolder();
 	addBlockUser();
@@ -1822,8 +1884,10 @@ void PeerMenuCreatePoll(
 			peer->owner().history(peer),
 			result.options);
 		action.replyTo = replyTo;
-		const auto topicRootId = replyTo.topicRootId;
-		if (const auto local = action.history->localDraft(topicRootId)) {
+		const auto local = action.history->localDraft(
+			replyTo.topicRootId,
+			replyTo.monoforumPeerId);
+		if (local) {
 			action.clearDraft = local->textWithTags.text.isEmpty();
 		} else {
 			action.clearDraft = false;
@@ -2467,7 +2531,7 @@ QPointer<Ui::BoxContent> ShowForwardMessagesBox(
 				return true;
 			}
 			const auto id = SeparateId(
-				(peer->isForum()
+				((peer->isForum() && !peer->asChannel()->useSubsectionTabs())
 					? SeparateType::Forum
 					: SeparateType::Chat),
 				thread);
@@ -2870,6 +2934,46 @@ QPointer<Ui::BoxContent> ShowDropMediaBox(
 	return weak->data();
 }
 
+QPointer<Ui::BoxContent> ShowDropMediaBox(
+		not_null<Window::SessionNavigation*> navigation,
+		std::shared_ptr<QMimeData> data,
+		not_null<Data::SavedMessages*> monoforum,
+		FnMut<void()> &&successCallback) {
+	const auto weak = std::make_shared<QPointer<Ui::BoxContent>>();
+	auto chosen = [
+		data = std::move(data),
+		callback = std::move(successCallback),
+		weak,
+		navigation
+	](not_null<Data::SavedSublist*> sublist) mutable {
+		const auto content = navigation->parentController()->content();
+		if (!content->filesOrForwardDrop(sublist, data.get())) {
+			return;
+		} else if (const auto strong = *weak) {
+			strong->closeBox();
+		}
+		if (callback) {
+			callback();
+		}
+	};
+	auto initBox = [=](not_null<PeerListBox*> box) {
+		box->addButton(tr::lng_cancel(), [=] {
+			box->closeBox();
+		});
+
+		monoforum->destroyed(
+		) | rpl::start_with_next([=] {
+			box->closeBox();
+		}, box->lifetime());
+	};
+	*weak = navigation->parentController()->show(Box<PeerListBox>(
+		std::make_unique<ChooseSublistBoxController>(
+			monoforum,
+			std::move(chosen)),
+		std::move(initBox)));
+	return weak->data();
+}
+
 QPointer<Ui::BoxContent> ShowSendNowMessagesBox(
 		not_null<Window::SessionNavigation*> navigation,
 		not_null<History*> history,
@@ -2993,14 +3097,18 @@ void HidePinnedBar(
 		not_null<Window::SessionNavigation*> navigation,
 		not_null<PeerData*> peer,
 		MsgId topicRootId,
+		PeerId monoforumPeerId,
 		Fn<void()> onHidden) {
 	const auto callback = crl::guard(navigation, [=](Fn<void()> &&close) {
 		close();
 		auto &session = peer->session();
-		const auto migrated = topicRootId ? nullptr : peer->migrateFrom();
+		const auto migrated = (topicRootId || monoforumPeerId)
+			? nullptr
+			: peer->migrateFrom();
 		const auto top = Data::ResolveTopPinnedId(
 			peer,
 			topicRootId,
+			monoforumPeerId,
 			migrated);
 		const auto universal = !top
 			? MsgId(0)
@@ -3011,6 +3119,7 @@ void HidePinnedBar(
 			session.settings().setHiddenPinnedMessageId(
 				peer->id,
 				topicRootId,
+				monoforumPeerId,
 				universal);
 			session.saveSettingsDelayed();
 			if (onHidden) {
@@ -3043,18 +3152,22 @@ void UnpinAllMessages(
 		const auto sendRequest = [=](auto self) -> void {
 			const auto history = strong->owningHistory();
 			const auto topicRootId = strong->topicRootId();
+			const auto sublist = strong->asSublist();
+			const auto monoforumPeerId = strong->monoforumPeerId();
 			using Flag = MTPmessages_UnpinAllMessages::Flag;
 			api->request(MTPmessages_UnpinAllMessages(
-				MTP_flags(topicRootId ? Flag::f_top_msg_id : Flag()),
+				MTP_flags((topicRootId ? Flag::f_top_msg_id : Flag())
+					| (sublist ? Flag::f_saved_peer_id : Flag())),
 				history->peer->input,
-				MTP_int(topicRootId.bare)
+				MTP_int(topicRootId.bare),
+				sublist ? sublist->sublistPeer()->input : MTPInputPeer()
 			)).done([=](const MTPmessages_AffectedHistory &result) {
 				const auto peer = history->peer;
 				const auto offset = api->applyAffectedHistory(peer, result);
 				if (offset > 0) {
 					self(self);
 				} else {
-					history->unpinMessagesFor(topicRootId);
+					history->unpinMessagesFor(topicRootId, monoforumPeerId);
 				}
 			}).send();
 		};
@@ -3198,6 +3311,19 @@ Fn<void()> DeleteAndLeaveHandler(
 	};
 }
 
+Fn<void()> DeleteSublistHandler(
+		not_null<Window::SessionController*> controller,
+		not_null<Data::SavedSublist*> sublist) {
+	const auto weak = base::make_weak(sublist.get());
+	return [=] {
+		if (const auto strong = weak.get()) {
+			if (!controller->showFrozenError()) {
+				controller->show(Box(DeleteSublistBox, strong));
+			}
+		}
+	};
+}
+
 void FillDialogsEntryMenu(
 		not_null<SessionController*> controller,
 		Dialogs::EntryState request,
@@ -3311,8 +3437,7 @@ void MarkAsReadThread(not_null<Data::Thread*> thread) {
 	if (!IsUnreadThread(thread)) {
 		return;
 	} else if (const auto forum = thread->asForum()) {
-		forum->enumerateTopics([](
-			not_null<Data::ForumTopic*> topic) {
+		forum->enumerateTopics([](not_null<Data::ForumTopic*> topic) {
 			MarkAsReadThread(topic);
 		});
 	} else if (const auto history = thread->asHistory()) {
@@ -3322,6 +3447,8 @@ void MarkAsReadThread(not_null<Data::Thread*> thread) {
 		}
 	} else if (const auto topic = thread->asTopic()) {
 		topic->readTillEnd();
+	} else if (const auto sublist = thread->asSublist()) {
+		sublist->readTillEnd();
 	}
 }
 
@@ -3343,9 +3470,10 @@ void AddSeparatorAndShiftUp(const PeerMenuCallback &addAction) {
 void TogglePinnedThread(
 		not_null<Window::SessionController*> controller,
 		not_null<Dialogs::Entry*> entry,
-		FilterId filterId) {
+		FilterId filterId,
+		Fn<void()> onToggled) {
 	if (!filterId) {
-		return TogglePinnedThread(controller, entry);
+		return TogglePinnedThread(controller, entry, onToggled);
 	}
 	const auto history = entry->asHistory();
 	if (!history) {
@@ -3371,6 +3499,9 @@ void TogglePinnedThread(
 	Api::SaveNewFilterPinned(&owner->session(), filterId);
 	if (isPinned) {
 		controller->content()->dialogsToUp();
+		if (onToggled) {
+			onToggled();
+		}
 	}
 }
 

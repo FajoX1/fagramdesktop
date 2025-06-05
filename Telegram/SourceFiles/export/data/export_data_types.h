@@ -497,15 +497,19 @@ struct ActionPaymentSent {
 };
 
 struct ActionPhoneCall {
-	enum class DiscardReason {
+	enum class State {
 		Unknown,
 		Missed,
 		Disconnect,
 		Hangup,
 		Busy,
-		AllowGroupCall,
+		MigrateConferenceCall,
+		Invitation,
+		Active,
 	};
-	DiscardReason discardReason = DiscardReason::Unknown;
+
+	uint64 conferenceId = 0;
+	State state = State::Unknown;
 	int duration = 0;
 };
 
@@ -669,6 +673,7 @@ struct ActionPaidMessagesRefunded {
 
 struct ActionPaidMessagesPrice {
 	int stars = 0;
+	bool broadcastAllowed = false;
 };
 
 struct ServiceAction {

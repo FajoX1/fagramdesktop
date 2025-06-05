@@ -48,11 +48,6 @@ public:
 	[[nodiscard]] rpl::producer<> refreshed() const;
 	[[nodiscard]] rpl::producer<> value() const;
 
-	[[nodiscard]] bool suggestionCurrent(const QString &key) const;
-	[[nodiscard]] rpl::producer<> suggestionRequested(
-		const QString &key) const;
-	void dismissSuggestion(const QString &key);
-
 	[[nodiscard]] bool newRequirePremiumFree() const;
 
 	[[nodiscard]] auto ignoredRestrictionReasons() const
@@ -76,8 +71,19 @@ public:
 	[[nodiscard]] bool paidMessagesAvailable() const;
 	[[nodiscard]] int paidMessageStarsMax() const;
 	[[nodiscard]] int paidMessageCommission() const;
+	[[nodiscard]] int paidMessageChannelStarsDefault() const;
 
 	[[nodiscard]] int pinnedGiftsLimit() const;
+
+	[[nodiscard]] bool callsDisabledForSession() const;
+	[[nodiscard]] int confcallSizeLimit() const;
+	[[nodiscard]] bool confcallPrioritizeVP8() const;
+
+	[[nodiscard]] int giftResalePriceMax() const;
+	[[nodiscard]] int giftResalePriceMin() const;
+	[[nodiscard]] int giftResaleReceiveThousandths() const;
+
+	[[nodiscard]] int pollOptionsLimit() const;
 
 	void refresh(bool force = false);
 
@@ -117,7 +123,6 @@ private:
 	bool _pendingRefresh = false;
 	base::flat_map<QString, MTPJSONValue> _data;
 	rpl::event_stream<> _refreshed;
-	base::flat_set<QString> _dismissedSuggestions;
 
 	std::vector<QString> _ignoreRestrictionReasons;
 	rpl::event_stream<std::vector<QString>> _ignoreRestrictionChanges;

@@ -82,7 +82,8 @@ public:
 		Fn<void(Data::CreditsStatusSlice)> done);
 	void requestSubscriptions(
 		const Data::CreditsStatusSlice::OffsetToken &token,
-		Fn<void(Data::CreditsStatusSlice)> done);
+		Fn<void(Data::CreditsStatusSlice)> done,
+		bool missingBalance = false);
 
 private:
 	using HistoryTL = MTPpayments_GetStarsTransactions;
@@ -121,6 +122,7 @@ void EditCreditsSubscription(
 	Fn<void(QString)> fail);
 
 [[nodiscard]] MTPInputSavedStarGift InputSavedStarGiftId(
-	const Data::SavedStarGiftId &id);
+	const Data::SavedStarGiftId &id,
+	const std::shared_ptr<Data::UniqueGift> &unique = nullptr);
 
 } // namespace Api

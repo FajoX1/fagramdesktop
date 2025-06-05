@@ -232,7 +232,7 @@ TranslateBar::TranslateBar(
 : _controller(controller)
 , _history(history)
 , _wrap(parent, object_ptr<Ui::AbstractButton>(parent))
-, _shadow(std::make_unique<Ui::PlainShadow>(_wrap.parentWidget())) {
+, _shadow(std::make_unique<Ui::PlainShadow>(parent)) {
 	_wrap.hide(anim::type::instant);
 	_shadow->hide();
 
@@ -372,10 +372,16 @@ void TranslateBar::setup(not_null<History*> history) {
 			const auto&,
 			const auto&) {
 		using Flag = PeerData::TranslationFlag;
+		const auto automatic = history->peer->autoTranslation();
 		return (history->peer->translationFlag() != Flag::Enabled)
 			? rpl::single(QString())
 			: history->translatedTo()
-			? tr::lng_translate_show_original()
+			? (automatic
+				? tr::lng_translate_return_original(
+					lt_language,
+					rpl::single(Ui::LanguageName(
+						history->translateOfferedFrom())))
+				: tr::lng_translate_show_original())
 			: history->translateOfferedFrom()
 			? Ui::TranslateBarTo(to)
 			: rpl::single(QString());

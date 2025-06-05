@@ -403,7 +403,7 @@ void PublicForwardsController::appendRow(
 	const auto views = [&] {
 		if (contextId.messageId) {
 			const auto message = peer->owner().message(contextId.messageId);
-			return message ? message->viewsCount() : 0;
+			return message ? std::max(message->viewsCount(), 0) : 0;
 		} else if (const auto &id = contextId.storyId) {
 			const auto story = peer->owner().stories().lookup(id);
 			return story ? (*story)->views() : 0;
@@ -859,6 +859,8 @@ void CreditsRow::init() {
 			lt_count,
 			_entry.paidMessagesCount)
 		: ((!_entry.subscriptionUntil.isNull() && !isSpecial)
+			|| (_entry.giftUpgraded && !isSpecial)
+			|| (_entry.giftResale && !isSpecial)
 			|| _entry.title.isEmpty())
 		? name
 		: _entry.title;

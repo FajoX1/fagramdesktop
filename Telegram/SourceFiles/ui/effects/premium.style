@@ -311,6 +311,13 @@ boostReplaceIconSkip: 3px;
 boostReplaceIconOutline: 2px;
 boostReplaceIconAdd: point(4px, 2px);
 boostReplaceArrow: icon{{ "mediaview/next", windowSubTextFg }};
+boostReplaceUserpicsRow: UserpicsRow {
+	button: boostReplaceUserpic;
+	bg: windowBg;
+	shift: boostReplaceUserpicsShift;
+	stroke: boostReplaceIconOutline;
+	complex: true;
+}
 
 showOrIconLastSeen: icon{{ "settings/premium/large_lastseen", windowFgActive }};
 showOrIconReadTime: icon{{ "settings/premium/large_readtime", windowFgActive }};
@@ -364,6 +371,7 @@ boostFeatureLink: icon{{ "settings/premium/features/feature_links", windowBgActi
 boostFeatureName: icon{{ "settings/premium/features/feature_color_names", windowBgActive }};
 boostFeatureStories: icon{{ "settings/premium/features/feature_stories", windowBgActive }};
 boostFeatureTranscribe: icon{{ "settings/premium/features/feature_voice", windowBgActive }};
+boostFeatureAutoTranslate: icon{{ "menu/translate", windowBgActive }};
 boostFeatureOffSponsored: icon{{ "settings/premium/features/feature_off_sponsored", windowBgActive }};
 
 paidReactBox: Box(boostBox) {

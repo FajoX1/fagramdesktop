@@ -205,9 +205,11 @@ void InnerWidget::fill() {
 			tr::lng_bot_earn_available);
 		Ui::AddSkip(container);
 		Ui::AddSkip(container);
-		// addOverview(data.currentBalance, tr::lng_bot_earn_reward);
-		// Ui::AddSkip(container);
-		// Ui::AddSkip(container);
+		addOverview(
+			rpl::single(data.currentBalance),
+			tr::lng_bot_earn_reward);
+		Ui::AddSkip(container);
+		Ui::AddSkip(container);
 		addOverview(
 			rpl::single(
 				data.overallRevenue
@@ -224,6 +226,7 @@ void InnerWidget::fill() {
 	}
 	{
 		AddHeader(container, tr::lng_bot_earn_balance_title);
+		Ui::AddSkip(container);
 		auto dateValue = rpl::single(
 			data.nextWithdrawalAt
 		) | rpl::then(
@@ -250,6 +253,7 @@ void InnerWidget::fill() {
 			) | rpl::map([=](StarsAmount v) {
 				return v ? ToUsd(v, multiplier, kMinorLength) : QString();
 			}));
+		container->resizeToWidth(container->width());
 	}
 	if (BotStarRef::Join::Allowed(peer())) {
 		const auto button = BotStarRef::AddViewListButton(
