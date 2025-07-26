@@ -519,6 +519,22 @@ Suggestions::ObjectListController::ObjectListController(
 : _window(window) {
 }
 
+not_null<Window::SessionController*> Suggestions::ObjectListController::window() const {
+	return _window;
+}
+
+rpl::producer<int> Suggestions::ObjectListController::count() const {
+	return _count.value();
+}
+
+rpl::producer<not_null<PeerData*>> Suggestions::ObjectListController::chosen() const {
+	return _chosen.events();
+}
+
+Main::Session &Suggestions::ObjectListController::session() const {
+	return _window->session();
+}
+
 bool Suggestions::ObjectListController::rowTrackPress(
 		not_null<PeerListRow*> row) {
 	const auto peer = row->peer();

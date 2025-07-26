@@ -123,19 +123,11 @@ public:
 		explicit ObjectListController(
 			not_null<Window::SessionController*> window);
 
-		[[nodiscard]] not_null<Window::SessionController*> window() const {
-			return _window;
-		}
-		[[nodiscard]] rpl::producer<int> count() const {
-			return _count.value();
-		}
-		[[nodiscard]] rpl::producer<not_null<PeerData*>> chosen() const {
-			return _chosen.events();
-		}
+		[[nodiscard]] not_null<Window::SessionController*> window() const;
+		[[nodiscard]] rpl::producer<int> count() const;
+		[[nodiscard]] rpl::producer<not_null<PeerData*>> chosen() const;
 
-		Main::Session &session() const override {
-			return _window->session();
-		}
+		Main::Session &session() const override;
 
 		void rowClicked(not_null<PeerListRow*> row) override;
 		void rowMiddleClicked(not_null<PeerListRow*> row) override;
