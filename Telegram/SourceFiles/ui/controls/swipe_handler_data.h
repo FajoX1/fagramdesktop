@@ -33,18 +33,3 @@ struct SwipeBackResult final {
 };
 
 } // namespace Ui::Controls
-
-namespace Dialogs::Ui {
-
-using namespace ::Ui;
-
-enum class QuickDialogAction {
-	Mute,
-	Pin,
-	Read,
-	Archive,
-	Delete,
-	Disabled,
-};
-
-} // namespace Dialogs::Ui
