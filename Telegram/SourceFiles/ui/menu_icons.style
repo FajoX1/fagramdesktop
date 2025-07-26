@@ -56,7 +56,9 @@ menuIconDiscussion: icon {{ "menu/discussion", menuIconColor }};
 menuIconStats: icon {{ "menu/stats", menuIconColor }};
 menuIconBoosts: icon {{ "menu/boosts", menuIconColor }};
 menuIconEarn: icon {{ "menu/earn", menuIconColor }};
+menuIconCancelFee: icon {{ "menu/cancel_fee", menuIconColor }};
 menuIconCreatePoll: icon {{ "menu/create_poll", menuIconColor }};
+menuIconCreateTodoList: icon {{ "menu/select", menuIconColor }};
 menuIconQrCode: icon {{ "menu/qr_code", menuIconColor }};
 menuIconExpand: icon {{ "menu/expand", menuIconColor }};
 menuIconCollapse: icon {{ "menu/collapse", menuIconColor }};
@@ -135,7 +137,6 @@ menuIconTopics: icon {{ "menu/topics", menuIconColor }};
 menuIconGroupReactions: icon {{ "menu/group_reactions", menuIconColor }};
 menuIconLinks: icon {{ "menu/links_profile", menuIconColor }};
 menuIconGroupLog: icon {{ "menu/group_log", menuIconColor }};
-menuIconGroupCreate: icon {{ "menu/groups_create", menuIconColor }};
 menuIconSigned: icon {{ "menu/signed", menuIconColor }};
 menuIconAntispam: icon {{ "menu/antispam", menuIconColor }};
 menuIconChatDiscuss: icon {{ "menu/chat_discuss", menuIconColor }};
@@ -185,6 +186,7 @@ menuIconPayment: icon {{ "payments/payment_card", menuIconColor }};
 menuIconOrderPrice: icon {{ "menu/order_price", menuIconColor }};
 menuIconOrderDate: icon {{ "menu/order_date", menuIconColor }};
 menuIconOrderNumber: icon {{ "menu/order_number", menuIconColor }};
+menuIconAdd: icon{{ "menu/add", menuIconColor }};
 
 menuIconTTLAny: icon {{ "menu/auto_delete_plain", menuIconColor }};
 menuIconTTLAnyTextPosition: point(11px, 22px);
@@ -200,9 +202,11 @@ menuBlueIconColorNames: icon{{ "settings/premium/features/feature_color_names", 
 menuBlueIconWallpaper: icon{{ "settings/premium/features/feature_wallpaper", lightButtonFg }};
 menuBlueIconEmojiStatus: icon{{ "settings/premium/features/feature_status", lightButtonFg }};
 menuBlueIconEmojiPack: icon{{ "settings/premium/features/feature_emoji_pack", lightButtonFg }};
+menuBlueIconGroupCreate: icon {{ "menu/groups_create", lightButtonFg }};
 
 mediaMenuIconStickers: icon {{ "menu/stickers", mediaviewMenuFg }};
 mediaMenuIconCancel: icon {{ "menu/cancel", mediaviewMenuFg }};
+mediaMenuIconChannel: icon {{ "menu/channel", mediaviewMenuFg }};
 mediaMenuIconShowInChat: icon {{ "menu/show_in_chat", mediaviewMenuFg }};
 mediaMenuIconShowInFolder: icon {{ "menu/show_in_folder", mediaviewMenuFg }};
 mediaMenuIconDownload: icon {{ "menu/download", mediaviewMenuFg }};
@@ -232,6 +236,7 @@ menuIconRestoreAttention: icon {{ "menu/restore", menuIconAttentionColor }};
 menuIconTagRemoveAttention: icon {{ "menu/tag_remove", menuIconAttentionColor }};
 menuIconCancelAttention: icon {{ "menu/cancel", menuIconAttentionColor }};
 menuIconBlockAttention: icon {{ "menu/block", menuIconAttentionColor }};
+menuIconRemoveAttention: icon {{ "menu/remove", menuIconAttentionColor }};
 
 menuIconBlockSettings: icon {{ "menu/block", windowBgActive }};
 menuIconInviteSettings: icon {{ "menu/invite", lightButtonFg }};

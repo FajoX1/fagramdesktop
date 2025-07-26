@@ -719,6 +719,14 @@ bool PeerData::canCreatePolls() const {
 	return Data::CanSend(this, ChatRestriction::SendPolls);
 }
 
+bool PeerData::canCreateTodoLists() const {
+	if (isMonoforum() || isBroadcast()) {
+		return false;
+	}
+	return session().premium()
+		&& (Data::CanSend(this, ChatRestriction::SendPolls) || isUser());
+}
+
 bool PeerData::canCreateTopics() const {
 	if (const auto channel = asChannel()) {
 		return channel->isForum()
@@ -1577,6 +1585,9 @@ Data::RestrictionCheckResult PeerData::amRestricted(
 				: Result::Explicit())
 			: Result::Allowed();
 	} else if (const auto channel = asChannel()) {
+		if (channel->monoforumDisabled()) {
+			return Result::WithEveryone();
+		}
 		const auto defaultRestrictions = channel->defaultRestrictions()
 			| (channel->isPublic()
 				? (ChatRestriction::PinMessages
@@ -1705,11 +1716,20 @@ int PeerData::starsPerMessage() const {
 
 int PeerData::starsPerMessageChecked() const {
 	if (const auto channel = asChannel()) {
-		if (channel->adminRights() || channel->amCreator()) {
+		if (channel->adminRights()
+			|| channel->amCreator()
+			|| amMonoforumAdmin()) {
 			return 0;
 		}
 	}
 	return starsPerMessage();
+}
+
+Data::StarsRating PeerData::starsRating() const {
+	if (const auto user = asUser()) {
+		return user->starsRating();
+	}
+	return {};
 }
 
 Data::GroupCall *PeerData::groupCall() const {

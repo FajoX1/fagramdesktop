@@ -67,6 +67,20 @@ bool ApplyBotVerifierSettings(
 	return false;
 }
 
+[[nodiscard]] Data::StarsRating ParseStarsRating(
+		const MTPStarsRating *rating) {
+	if (!rating) {
+		return {};
+	}
+	const auto &data = rating->data();
+	return {
+		.level = data.vlevel().v,
+		.levelStars = int(data.vcurrent_level_stars().v),
+		.currentStars = int(data.vstars().v),
+		.nextLevelStars = int(data.vnext_level_stars().value_or_empty()),
+	};
+}
+
 } // namespace
 
 BotInfo::BotInfo() = default;
@@ -555,12 +569,35 @@ int UserData::starsPerMessage() const {
 	return _starsPerMessage;
 }
 
+void UserData::setStoriesCorrespondent(bool is) {
+	if (is) {
+		_flags.add(UserDataFlag::StoriesCorrespondent);
+	} else {
+		_flags.remove(UserDataFlag::StoriesCorrespondent);
+	}
+}
+
+bool UserData::storiesCorrespondent() const {
+	return (_flags.current() & UserDataFlag::StoriesCorrespondent);
+}
+
 void UserData::setStarsPerMessage(int stars) {
 	if (_starsPerMessage != stars) {
 		_starsPerMessage = stars;
 		session().changes().peerUpdated(this, UpdateFlag::StarsPerMessage);
 	}
 	checkTrustedPayForMessage();
+}
+
+void UserData::setStarsRating(Data::StarsRating value) {
+	if (_starsRating != value) {
+		_starsRating = value;
+		session().changes().peerUpdated(this, UpdateFlag::StarsRating);
+	}
+}
+
+Data::StarsRating UserData::starsRating() const {
+	return _starsRating;
 }
 
 bool UserData::canAddContact() const {
@@ -731,6 +768,10 @@ void ApplyUserUpdate(not_null<UserData*> user, const MTPDuserFull &update) {
 		| Flag::CanPinMessages
 		| Flag::VoiceMessagesForbidden
 		| Flag::ReadDatesPrivate
+		| (update.is_contact_require_premium()
+			? Flag::HasRequirePremiumToWrite
+			: Flag())
+		| (user->starsPerMessage() ? Flag::HasStarsPerMessage : Flag())
 		| Flag::MessageMoneyRestrictionsKnown
 		| Flag::RequiresPremiumToWrite;
 	user->setFlags((user->flags() & ~mask)
@@ -744,9 +785,10 @@ void ApplyUserUpdate(not_null<UserData*> user, const MTPDuserFull &update) {
 			? Flag::VoiceMessagesForbidden
 			: Flag())
 		| (update.is_read_dates_private() ? Flag::ReadDatesPrivate : Flag())
+		| (user->starsPerMessage() ? Flag::HasStarsPerMessage : Flag())
 		| Flag::MessageMoneyRestrictionsKnown
 		| (update.is_contact_require_premium()
-			? Flag::RequiresPremiumToWrite
+			? (Flag::RequiresPremiumToWrite | Flag::HasRequirePremiumToWrite)
 			: Flag()));
 	user->setIsBlocked(update.is_blocked());
 	user->setCallsStatus(update.is_phone_calls_private()
@@ -800,14 +842,16 @@ void ApplyUserUpdate(not_null<UserData*> user, const MTPDuserFull &update) {
 				= std::make_shared<rpl::lifetime>();
 			const auto currencyLoad
 				= currencyLoadLifetime->make_state<Api::EarnStatistics>(user);
-			const auto apply = [=](Data::EarnInt balance) {
+			const auto apply = [=](const CreditsAmount &balance) {
 				if (const auto strong = weak.get()) {
 					strong->credits().applyCurrency(id, balance);
 				}
 				currencyLoadLifetime->destroy();
 			};
 			currencyLoad->request() | rpl::start_with_error_done(
-				[=](const QString &error) { apply(0); },
+				[=](const QString &error) {
+					apply(CreditsAmount(0, CreditsType::Ton));
+				},
 				[=] { apply(currencyLoad->data().currentBalance); },
 				*currencyLoadLifetime);
 			base::timer_once(kTimeout) | rpl::start_with_next([=] {
@@ -841,6 +885,7 @@ void ApplyUserUpdate(not_null<UserData*> user, const MTPDuserFull &update) {
 	}
 	user->setBotVerifyDetails(
 		ParseBotVerifyDetails(update.vbot_verification()));
+	user->setStarsRating(ParseStarsRating(update.vstars_rating()));
 
 	if (const auto gifts = update.vdisallowed_gifts()) {
 		const auto &data = gifts->data();
@@ -880,9 +925,8 @@ StarRefProgram ParseStarRefProgram(const MTPStarRefProgram *program) {
 	const auto &data = program->data();
 	result.commission = data.vcommission_permille().v;
 	result.durationMonths = data.vduration_months().value_or_empty();
-	result.revenuePerUser = data.vdaily_revenue_per_user()
-		? Data::FromTL(*data.vdaily_revenue_per_user())
-		: StarsAmount();
+	result.revenuePerUser = CreditsAmountFromTL(
+		data.vdaily_revenue_per_user());
 	result.endDate = data.vend_date().value_or_empty();
 	return result;
 }

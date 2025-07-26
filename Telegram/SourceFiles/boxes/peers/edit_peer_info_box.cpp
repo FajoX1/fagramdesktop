@@ -82,6 +82,7 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 #include "window/window_session_controller.h"
 #include "api/api_invite_links.h"
 #include "styles/style_chat_helpers.h"
+#include "styles/style_credits.h"
 #include "styles/style_layers.h"
 #include "styles/style_menu_icons.h"
 #include "styles/style_settings.h"
@@ -133,7 +134,7 @@ void AddButtonWithCount(
 not_null<Ui::SettingsButton*> AddButtonWithText(
 		not_null<Ui::VerticalLayout*> parent,
 		rpl::producer<QString> &&text,
-		rpl::producer<QString> &&label,
+		rpl::producer<TextWithEntities> &&label,
 		Fn<void()> callback,
 		Settings::IconDescriptor &&descriptor) {
 	return parent->add(EditPeerInfoBox::CreateButton(
@@ -143,6 +144,20 @@ not_null<Ui::SettingsButton*> AddButtonWithText(
 		std::move(callback),
 		st::manageGroupTopButtonWithText,
 		std::move(descriptor)));
+}
+
+not_null<Ui::SettingsButton*> AddButtonWithText(
+		not_null<Ui::VerticalLayout*> parent,
+		rpl::producer<QString> &&text,
+		rpl::producer<QString> &&label,
+		Fn<void()> callback,
+		Settings::IconDescriptor &&descriptor) {
+	return AddButtonWithText(
+		parent,
+		std::move(text),
+		std::move(label) | Ui::Text::ToWithEntities(),
+		std::move(callback),
+		std::move(descriptor));
 }
 
 void AddButtonDelete(
@@ -168,10 +183,7 @@ void SaveDefaultRestrictions(
 	const auto requestId = api->request(
 		MTPmessages_EditChatDefaultBannedRights(
 			peer->input,
-			MTP_chatBannedRights(
-				MTP_flags(
-					MTPDchatBannedRights::Flags::from_raw(uint32(rights))),
-				MTP_int(0)))
+			RestrictionsToMTP({ rights, 0 }))
 	).done([=](const MTPUpdates &result) {
 		api->clearModifyRequest(key);
 		api->applyUpdates(result);
@@ -243,7 +255,7 @@ void SaveStarsPerMessage(
 		api->clearModifyRequest(key);
 		api->applyUpdates(result);
 		if (!broadcast) {
-			channel->setStarsPerMessage(starsPerMessage);
+			channel->owner().editStarsPerMessage(channel, starsPerMessage);
 		}
 		done(true);
 	}).fail([=](const MTP::Error &error) {
@@ -253,7 +265,9 @@ void SaveStarsPerMessage(
 			done(false);
 		} else {
 			if (!broadcast) {
-				channel->setStarsPerMessage(starsPerMessage);
+				channel->owner().editStarsPerMessage(
+					channel,
+					starsPerMessage);
 			}
 			done(true);
 		}
@@ -346,6 +360,14 @@ void ShowEditPermissions(
 		ShowEditPeerPermissionsBox(box, navigation, peer, std::move(done));
 	};
 	navigation->parentController()->show(Box(std::move(createBox)));
+}
+
+[[nodiscard]] int CurrentPricePerDirectMessage(
+		not_null<ChannelData*> broadcast) {
+	const auto monoforumLink = broadcast->monoforumLink();
+	return (monoforumLink && !monoforumLink->monoforumDisabled())
+		? monoforumLink->commonStarsPerMessage()
+		: -1;
 }
 
 class Controller : public base::has_weak_ptr {
@@ -884,7 +906,7 @@ void Controller::showEditDiscussionLinkBox() {
 		return;
 	}
 
-	const auto box = std::make_shared<QPointer<Ui::BoxContent>>();
+	const auto box = std::make_shared<base::weak_qptr<Ui::BoxContent>>();
 	const auto channel = _peer->asChannel();
 	const auto callback = [=](ChannelData *result) {
 		if (*box) {
@@ -1070,17 +1092,20 @@ void Controller::fillDirectMessagesButton() {
 		return;
 	}
 
-	const auto monoforumLink = _peer->asChannel()->monoforumLink();
-	_starsPerDirectMessageSavedValue = rpl::variable<int>(
-		monoforumLink ? monoforumLink->starsPerMessage() : -1);
+	const auto perMessage = CurrentPricePerDirectMessage(_peer->asChannel());
+	_starsPerDirectMessageSavedValue = rpl::variable<int>(perMessage);
 
 	auto label = _starsPerDirectMessageSavedValue->value(
 	) | rpl::map([](int starsPerMessage) {
 		return (starsPerMessage < 0)
-			? tr::lng_manage_monoforum_off()
+			? tr::lng_manage_monoforum_off(Ui::Text::WithEntities)
 			: !starsPerMessage
-			? tr::lng_manage_monoforum_free()
-			: rpl::single(Lang::FormatCountDecimal(starsPerMessage));
+			? tr::lng_manage_monoforum_free(Ui::Text::WithEntities)
+			: rpl::single(Ui::Text::IconEmoji(
+				&st::starIconEmojiColored
+			).append(' ').append(
+				Lang::FormatCreditsAmountDecimal(
+					CreditsAmount{ starsPerMessage })));
 	}) | rpl::flatten_latest();
 	AddButtonWithText(
 		_controls.buttonsLayout,
@@ -1227,12 +1252,12 @@ void Controller::fillAutoTranslateButton() {
 			_autotranslateSavedValue = value;
 		} else if (value) {
 			state->toggled.fire(false);
-			auto weak = Ui::MakeWeak(autotranslate);
+			auto weak = base::make_weak(autotranslate);
 			CheckBoostLevel(
 				_navigation->uiShow(),
 				_peer,
 				[=](int level) {
-					if (const auto strong = weak.data()) {
+					if (const auto strong = weak.get()) {
 						state->isLocked = (level < requiredLevel);
 					}
 					return (level < requiredLevel)
@@ -1825,9 +1850,8 @@ void Controller::fillBotCurrencyButton() {
 
 	auto &lifetime = _controls.buttonsLayout->lifetime();
 	const auto state = lifetime.make_state<State>();
-	const auto format = [=](uint64 balance) {
-		return Info::ChannelEarn::MajorPart(balance)
-			+ Info::ChannelEarn::MinorPart(balance);
+	const auto format = [=](const CreditsAmount &balance) {
+		return Lang::FormatCreditsAmountDecimal(balance);
 	};
 	const auto was = _peer->session().credits().balanceCurrency(
 		_peer->id);
@@ -1891,7 +1915,7 @@ void Controller::fillBotCreditsButton() {
 	auto &lifetime = _controls.buttonsLayout->lifetime();
 	const auto state = lifetime.make_state<State>();
 	if (const auto balance = _peer->session().credits().balance(_peer->id)) {
-		state->balance = Lang::FormatStarsAmountDecimal(balance);
+		state->balance = Lang::FormatCreditsAmountDecimal(balance);
 	}
 
 	const auto wrap = _controls.buttonsLayout->add(
@@ -1916,7 +1940,7 @@ void Controller::fillBotCreditsButton() {
 			if (data.balance) {
 				wrap->toggle(true, anim::type::normal);
 			}
-			state->balance = Lang::FormatStarsAmountDecimal(data.balance);
+			state->balance = Lang::FormatCreditsAmountDecimal(data.balance);
 		});
 	}
 	{
@@ -2385,8 +2409,7 @@ void Controller::saveDirectMessagesPrice() {
 	if (!channel) {
 		return continueSave();
 	}
-	const auto monoforumLink = channel->monoforumLink();
-	const auto current = monoforumLink ? monoforumLink->starsPerMessage() : -1;
+	const auto current = CurrentPricePerDirectMessage(channel);
 	const auto desired = _savingData.starsPerDirectMessage
 		? *_savingData.starsPerDirectMessage
 		: current;
@@ -2866,6 +2889,22 @@ object_ptr<Ui::SettingsButton> EditPeerInfoBox::CreateButton(
 		Fn<void()> callback,
 		const style::SettingsCountButton &st,
 		Settings::IconDescriptor &&descriptor) {
+	return CreateButton(
+		parent,
+		std::move(text),
+		std::move(count) | Ui::Text::ToWithEntities(),
+		std::move(callback),
+		st,
+		std::move(descriptor));
+}
+
+object_ptr<Ui::SettingsButton> EditPeerInfoBox::CreateButton(
+		not_null<QWidget*> parent,
+		rpl::producer<QString> &&text,
+		rpl::producer<TextWithEntities> &&labelText,
+		Fn<void()> callback,
+		const style::SettingsCountButton &st,
+		Settings::IconDescriptor &&descriptor) {
 	auto result = object_ptr<Ui::SettingsButton>(
 		parent,
 		rpl::duplicate(text),
@@ -2886,37 +2925,49 @@ object_ptr<Ui::SettingsButton> EditPeerInfoBox::CreateButton(
 			std::move(descriptor));
 	}
 
-	auto labelText = rpl::combine(
+	const auto label = Ui::CreateChild<Ui::FlatLabel>(
+		button,
+		rpl::duplicate(labelText),
+		st.label);
+	label->setAttribute(Qt::WA_TransparentForMouseEvents);
+	label->show();
+
+	rpl::combine(
 		rpl::duplicate(text),
-		std::move(count),
+		std::move(labelText),
 		button->widthValue()
-	) | rpl::map([&st](const QString &text, const QString &count, int width) {
+	) | rpl::start_with_next([&st, label](
+			const QString &text,
+			const TextWithEntities &labelText,
+			int width) {
 		const auto available = width
 			- st.button.padding.left()
 			- (st.button.style.font->spacew * 2)
 			- st.button.style.font->width(text)
 			- st.labelPosition.x();
-		const auto required = st.label.style.font->width(count);
-		return (required > available)
-			? st.label.style.font->elided(count, std::max(available, 0))
-			: count;
-	});
+		const auto required = label->textMaxWidth();
+		label->resizeToWidth(std::min(required, available));
+		label->moveToRight(
+			st.labelPosition.x(),
+			st.labelPosition.y(),
+			width);
+	}, label->lifetime());
 
 	if (badge) {
 		rpl::combine(
 			std::move(text),
-			rpl::duplicate(labelText),
+			label->widthValue(),
 			button->widthValue()
 		) | rpl::start_with_next([=](
 				const QString &text,
-				const QString &label,
+				int labelWidth,
 				int width) {
 			const auto space = st.button.style.font->spacew;
 			const auto left = st.button.padding.left()
 				+ st.button.style.font->width(text)
 				+ space;
 			const auto right = st.labelPosition.x()
-				+ st.label.style.font->width(label)
+				+ labelWidth
 				+ (space * 2);
 			const auto available = width - left - right;
 			badge->setVisible(available >= badge->width());
@@ -2929,23 +2980,6 @@ object_ptr<Ui::SettingsButton> EditPeerInfoBox::CreateButton(
 			}
 		}, badge->lifetime());
 	}
-
-	const auto label = Ui::CreateChild<Ui::FlatLabel>(
-		button,
-		std::move(labelText),
-		st.label);
-	label->setAttribute(Qt::WA_TransparentForMouseEvents);
-	label->show();
-
-	rpl::combine(
-		button->widthValue(),
-		label->widthValue()
-	) | rpl::start_with_next([=, &st](int outerWidth, int width) {
-		label->moveToRight(
-			st.labelPosition.x(),
-			st.labelPosition.y(),
-			outerWidth);
-	}, label->lifetime());
 
 	return result;
 }

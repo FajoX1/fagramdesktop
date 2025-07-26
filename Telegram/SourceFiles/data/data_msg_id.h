@@ -172,6 +172,19 @@ inline QDebug operator<<(QDebug debug, const FullMsgId &fullMsgId) {
 
 Q_DECLARE_METATYPE(FullMsgId);
 
+struct MessageHighlightId {
+	TextWithEntities quote;
+	int quoteOffset = 0;
+	int todoItemId = 0;
+
+	[[nodiscard]] bool empty() const {
+		return quote.empty() && !todoItemId;
+	}
+	[[nodiscard]] friend inline bool operator==(
+		const MessageHighlightId &a,
+		const MessageHighlightId &b) = default;
+};
+
 struct FullReplyTo {
 	FullMsgId messageId;
 	TextWithEntities quote;
@@ -179,7 +192,11 @@ struct FullReplyTo {
 	MsgId topicRootId = 0;
 	PeerId monoforumPeerId = 0;
 	int quoteOffset = 0;
+	int todoItemId = 0;
 
+	[[nodiscard]] MessageHighlightId highlight() const {
+		return { quote, quoteOffset, todoItemId };
+	}
 	[[nodiscard]] bool replying() const {
 		return messageId || (storyId && storyId.peer);
 	}
@@ -188,6 +205,32 @@ struct FullReplyTo {
 	}
 	friend inline auto operator<=>(FullReplyTo, FullReplyTo) = default;
 	friend inline bool operator==(FullReplyTo, FullReplyTo) = default;
+};
+
+struct SuggestPostOptions {
+	uint32 exists : 1 = 0;
+	uint32 priceWhole : 31 = 0;
+	uint32 priceNano : 31 = 0;
+	uint32 ton : 1 = 0;
+	TimeId date = 0;
+
+	[[nodiscard]] CreditsAmount price() const {
+		return CreditsAmount(
+			priceWhole,
+			priceNano,
+			ton ? CreditsType::Ton : CreditsType::Stars);
+	}
+
+	explicit operator bool() const {
+		return exists != 0;
+	}
+
+	friend inline auto operator<=>(
+		SuggestPostOptions,
+		SuggestPostOptions) = default;
+	friend inline bool operator==(
+		SuggestPostOptions,
+		SuggestPostOptions) = default;
 };
 
 struct GlobalMsgId {

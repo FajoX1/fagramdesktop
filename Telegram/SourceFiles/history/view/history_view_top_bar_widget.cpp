@@ -339,8 +339,8 @@ bool TopBarWidget::createMenu(not_null<Ui::IconButton*> button) {
 		this,
 		st::popupMenuExpandedSeparator);
 	_menu->setDestroyedCallback([
-			weak = Ui::MakeWeak(this),
-			weakButton = Ui::MakeWeak(button),
+			weak = base::make_weak(this),
+			weakButton = base::make_weak(button),
 			menu = _menu.get()] {
 		if (weak && weak->_menu == menu) {
 			if (weakButton) {
@@ -397,6 +397,10 @@ void TopBarWidget::toggleInfoSection() {
 					(_activeChat.key.topic()
 						? std::make_shared<Info::Memento>(
 							_activeChat.key.topic())
+						: (_activeChat.key.sublist()
+							&& _activeChat.key.sublist()->parentChat())
+						? std::make_shared<Info::Memento>(
+							_activeChat.key.sublist())
 						: Info::Memento::Default(_activeChat.key.peer())),
 					Window::SectionShow().withThirdColumn());
 			} else {
@@ -753,9 +757,7 @@ void TopBarWidget::infoClicked() {
 	} else if (const auto topic = key.topic()) {
 		_controller->showSection(std::make_shared<Info::Memento>(topic));
 	} else if (const auto sublist = key.sublist()) {
-		_controller->showSection(std::make_shared<Info::Memento>(
-			sublist,
-			Info::Section(Storage::SharedMediaType::Photo)));
+		_controller->showSection(std::make_shared<Info::Memento>(sublist));
 	} else if (key.peer()->savedSublistsInfo()) {
 		_controller->showSection(std::make_shared<Info::Memento>(
 			key.peer(),
@@ -1154,6 +1156,9 @@ void TopBarWidget::updateControlsVisibility() {
 	const auto hasPollsMenu = (_activeChat.key.peer()
 		&& _activeChat.key.peer()->canCreatePolls())
 		|| (topic && Data::CanSend(topic, ChatRestriction::SendPolls));
+	const auto hasTodoListsMenu = (_activeChat.key.peer()
+		&& _activeChat.key.peer()->canCreateTodoLists())
+		|| (topic && Data::CanSend(topic, ChatRestriction::SendPolls));
 	const auto hasTopicMenu = [&] {
 		if (!topic || section != Section::Replies) {
 			return false;
@@ -1173,17 +1178,25 @@ void TopBarWidget::updateControlsVisibility() {
 		&& (section == Section::History
 			? true
 			: (section == Section::Scheduled)
-			? hasPollsMenu
+			? (hasPollsMenu || hasTodoListsMenu)
 			: (section == Section::Replies)
-			? (hasPollsMenu || hasTopicMenu)
+			? (hasPollsMenu || hasTodoListsMenu || hasTopicMenu)
 			: (section == Section::ChatsList)
 			? (_activeChat.key.peer() && _activeChat.key.peer()->isForum())
+			: (section == Section::SavedSublist)
+			? (_activeChat.key.peer()
+				&& _activeChat.key.peer()->isChannel()
+				&& _activeChat.key.peer()->owner().commonStarsPerMessage(
+					_activeChat.key.peer()->asChannel()))
 			: false);
 	const auto hasInfo = !_activeChat.key.folder()
 		&& (section == Section::History
 			? true
 			: (section == Section::Replies)
 			? (_activeChat.key.topic() != nullptr)
+			: (section == Section::SavedSublist)
+			? (_activeChat.key.sublist() != nullptr
+				&& _activeChat.key.sublist()->parentChat())
 			: false);
 	updateSearchVisibility();
 	if (_searchMode) {

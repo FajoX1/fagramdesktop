@@ -119,12 +119,10 @@ rpl::producer<Ui::MessageBarContent> RootViewContent(
 ChatMemento::ChatMemento(
 	ChatViewId id,
 	MsgId highlightId,
-	const TextWithEntities &highlightPart,
-	int highlightPartOffsetHint)
+	MessageHighlightId highlight)
 : _id(id)
-, _highlightPart(highlightPart)
-, _highlightPartOffsetHint(highlightPartOffsetHint)
-, _highlightId(highlightId) {
+, _highlightId(highlightId)
+, _highlight(std::move(highlight)) {
 	if (highlightId || _id.sublist) {
 		_list.setAroundPosition({
 			.fullId = FullMsgId(_id.history->peer->id, highlightId),
@@ -306,7 +304,7 @@ ChatWidget::ChatWidget(
 	_topBar->show();
 
 	if (_repliesRootView) {
-		_repliesRootView->move(0, _topBar->height());
+		_repliesRootView->move(0, 0);
 	}
 
 	_topBar->deleteSelectionRequest(
@@ -352,6 +350,8 @@ ChatWidget::ChatWidget(
 				_composeControls->editMessage(
 					fullId,
 					_inner->getSelectedTextRange(item));
+			} else if (media->todolist()) {
+				Window::PeerMenuEditTodoList(controller, item);
 			}
 		}
 	}, _inner->lifetime());
@@ -677,6 +677,7 @@ void ChatWidget::setTopic(Data::ForumTopic *topic) {
 	_topic = topic;
 	refreshReplies();
 	refreshTopBarActiveChat();
+	validateSubsectionTabs();
 	if (_topic) {
 		if (_repliesRootView) {
 			_shownPinnedItem = nullptr;
@@ -873,12 +874,7 @@ void ChatWidget::setupComposeControls() {
 	_composeControls->jumpToItemRequests(
 	) | rpl::start_with_next([=](FullReplyTo to) {
 		if (const auto item = session().data().message(to.messageId)) {
-			JumpToMessageClickHandler(
-				item,
-				{},
-				to.quote,
-				to.quoteOffset
-			)->onClick({});
+			JumpToMessageClickHandler(item, {}, to.highlight())->onClick({});
 		}
 	}, lifetime());
 
@@ -1036,8 +1032,9 @@ void ChatWidget::setupSwipeReplyAndBack() {
 				: still)->fullId();
 			_inner->replyToMessageRequestNotify({
 				.messageId = replyToItemId,
-				.quote = selected.text,
-				.quoteOffset = selected.offset,
+				.quote = selected.highlight.quote,
+				.quoteOffset = selected.highlight.quoteOffset,
+				.todoItemId = selected.highlight.todoItemId,
 			});
 		};
 		return result;
@@ -1193,13 +1190,13 @@ void ChatWidget::sendingFilesConfirmed(
 
 bool ChatWidget::checkSendPayment(
 		int messagesCount,
-		int starsApproved,
+		Api::SendOptions options,
 		Fn<void(int)> withPaymentApproved) {
 	return _sendPayment.check(
 		controller(),
 		_peer,
+		options,
 		messagesCount,
-		starsApproved,
 		std::move(withPaymentApproved));
 }
 
@@ -1213,7 +1210,7 @@ void ChatWidget::sendingFilesConfirmed(
 	};
 	const auto checked = checkSendPayment(
 		bundle->totalCount,
-		options.starsApproved,
+		options,
 		withPaymentApproved);
 	if (!checked) {
 		return;
@@ -1384,7 +1381,7 @@ void ChatWidget::sendVoice(const ComposeControls::VoiceToSend &data) {
 	};
 	const auto checked = checkSendPayment(
 		1,
-		data.options.starsApproved,
+		data.options,
 		withPaymentApproved);
 	if (!checked) {
 		return;
@@ -1436,7 +1433,7 @@ void ChatWidget::send(Api::SendOptions options) {
 		};
 		const auto checked = checkSendPayment(
 			request.messagesCount,
-			options.starsApproved,
+			options,
 			withPaymentApproved);
 		if (!checked) {
 			return;
@@ -1553,7 +1550,8 @@ void ChatWidget::validateSubsectionTabs() {
 			validateSubsectionTabs();
 		});
 	}
-	if (!HistoryView::SubsectionTabs::UsedFor(_history)) {
+	const auto thread = _topic ? (Data::Thread*)_topic : _sublist;
+	if (!thread || !HistoryView::SubsectionTabs::UsedFor(_history)) {
 		if (_subsectionTabs) {
 			_subsectionTabsLifetime.destroy();
 			_subsectionTabs = nullptr;
@@ -1570,7 +1568,6 @@ void ChatWidget::validateSubsectionTabs() {
 	} else if (_subsectionTabs) {
 		return;
 	}
-	const auto thread = _topic ? (Data::Thread*)_topic : _sublist;
 	_subsectionTabs = controller()->restoreSubsectionTabsFor(this, thread);
 	if (!_subsectionTabs) {
 		_subsectionTabs = std::make_unique<HistoryView::SubsectionTabs>(
@@ -1667,7 +1664,7 @@ bool ChatWidget::sendExistingDocument(
 	};
 	const auto checked = checkSendPayment(
 		1,
-		messageToSend.action.options.starsApproved,
+		messageToSend.action.options,
 		withPaymentApproved);
 	if (!checked) {
 		return false;
@@ -1707,7 +1704,7 @@ bool ChatWidget::sendExistingPhoto(
 	};
 	const auto checked = checkSendPayment(
 		1,
-		options.starsApproved,
+		options,
 		withPaymentApproved);
 	if (!checked) {
 		return false;
@@ -1750,7 +1747,7 @@ void ChatWidget::sendInlineResult(
 	};
 	const auto checked = checkSendPayment(
 		1,
-		options.starsApproved,
+		options,
 		withPaymentApproved);
 	if (!checked) {
 		return;
@@ -1828,6 +1825,7 @@ void ChatWidget::refreshTopBarActiveChat() {
 			? EntryState::Section::SavedSublist
 			: EntryState::Section::Replies,
 		.currentReplyTo = replyTo(),
+		.currentSuggest = SuggestPostOptions(),
 	};
 	_topBar->setActiveChat(state, _sendAction.get());
 	_composeControls->setCurrentDialogsEntryState(state);
@@ -2119,10 +2117,6 @@ void ChatWidget::checkPinnedBarState() {
 	}, _pinnedBar->lifetime());
 
 	orderWidgets();
-
-	if (animatingShow()) {
-		_pinnedBar->hide();
-	}
 }
 
 void ChatWidget::clearHidingPinnedBar() {
@@ -2321,9 +2315,9 @@ bool ChatWidget::preventsClose(Fn<void()> &&continueCallback) const {
 	} else if (!_newTopicDiscarded
 		&& _topic
 		&& _topic->creating()) {
-		const auto weak = Ui::MakeWeak(this);
+		const auto weak = base::make_weak(this);
 		auto sure = [=](Fn<void()> &&close) {
-			if (const auto strong = weak.data()) {
+			if (const auto strong = weak.get()) {
 				strong->_newTopicDiscarded = true;
 			}
 			close();
@@ -2382,13 +2376,14 @@ bool ChatWidget::showInternal(
 		const Window::SectionShow &params) {
 	if (auto logMemento = dynamic_cast<ChatMemento*>(memento.get())) {
 		if (logMemento->id() == _id) {
-			restoreState(logMemento);
-			if (!logMemento->highlightId()) {
-				showAtPosition(Data::UnreadMessagePosition);
-			}
 			if (params.reapplyLocalDraft) {
 				_composeControls->applyDraft(
 					ComposeControls::FieldHistoryAction::NewEntry);
+			} else {
+				restoreState(logMemento);
+				if (!logMemento->highlightId()) {
+					showAtPosition(Data::UnreadMessagePosition);
+				}
 			}
 			return true;
 		}
@@ -2607,7 +2602,7 @@ void ChatWidget::subscribeToSublist() {
 void ChatWidget::unreadCountUpdated() {
 	if (_sublist && _sublist->unreadMark()) {
 		crl::on_main(this, [=] {
-			const auto guard = Ui::MakeWeak(this);
+			const auto guard = base::make_weak(this);
 			controller()->showPeerHistory(_sublist->owningHistory());
 			if (guard) {
 				closeCurrent();
@@ -2638,8 +2633,7 @@ void ChatWidget::restoreState(not_null<ChatMemento*> memento) {
 		auto params = Window::SectionShow(
 			Window::SectionShow::Way::Forward,
 			anim::type::instant);
-		params.highlightPart = memento->highlightPart();
-		params.highlightPartOffsetHint = memento->highlightPartOffsetHint();
+		params.highlight = memento->highlight();
 		showAtPosition(Data::MessagePosition{
 			.fullId = FullMsgId(_peer->id, highlight),
 			.date = TimeId(0),
@@ -2880,6 +2874,12 @@ void ChatWidget::showFinishedHook() {
 	// because after that the method showChildren() is called.
 	setupDragArea();
 	updatePinnedVisibility();
+
+	if (_topic) {
+		_topic->saveMeAsActiveSubsectionThread();
+	} else if (_sublist) {
+		_sublist->saveMeAsActiveSubsectionThread();
+	}
 }
 
 bool ChatWidget::floatPlayerHandleWheelEvent(QEvent *e) {
@@ -3152,7 +3152,7 @@ void ChatWidget::sendBotCommandWithOptions(
 	};
 	const auto checked = checkSendPayment(
 		1,
-		options.starsApproved,
+		options,
 		withPaymentApproved);
 	if (!checked) {
 		return;
@@ -3436,8 +3436,7 @@ bool ChatWidget::searchInChatEmbedded(
 		const auto item = activation.item;
 		auto params = ::Window::SectionShow(
 			::Window::SectionShow::Way::ClearStack);
-		params.highlightPart = { activation.query };
-		params.highlightPartOffsetHint = kSearchQueryOffsetHint;
+		params.highlight = Window::SearchHighlightId(activation.query);
 		controller()->showPeerHistory(
 			item->history()->peer->id,
 			params,

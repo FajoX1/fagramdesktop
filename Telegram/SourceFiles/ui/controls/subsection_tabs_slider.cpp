@@ -7,9 +7,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "ui/controls/subsection_tabs_slider.h"
 
-#include "base/call_delayed.h"
 #include "dialogs/dialogs_three_state_icon.h"
 #include "ui/effects/ripple_animation.h"
+#include "ui/widgets/scroll_area.h"
 #include "ui/dynamic_image.h"
 #include "ui/unread_badge_paint.h"
 #include "styles/style_chat.h"
@@ -384,23 +384,34 @@ void SubsectionSlider::activate(int index) {
 			}
 		}
 	};
-	const auto duration = st::chatTabsSlider.duration;
-	_activeFrom.start(callback, was.from, now.from, duration);
-	_activeSize.start(callback, was.size, now.size, duration);
-	base::call_delayed(duration, this, [=] {
-		if (_active == index) {
-			_sectionActivated.fire_copy(index);
-		}
-	});
+	const auto weak = base::make_weak(_bar);
+	_sectionActivated.fire_copy(index);
+	if (weak) {
+		const auto duration = st::chatTabsSlider.duration;
+		_activeFrom.start(callback, was.from, now.from, duration);
+		_activeSize.start(callback, was.size, now.size, duration);
+		_requestShown.fire_copy({ now.from, now.from + now.size });
+	}
 }
 
-void SubsectionSlider::setActiveSectionFast(int active) {
+void SubsectionSlider::setActiveSectionFast(int active, bool ignoreScroll) {
 	Expects(active < int(_tabs.size()));
 
+	if (_active == active) {
+		return;
+	}
 	_active = active;
 	_activeFrom.stop();
 	_activeSize.stop();
+	if (_active >= 0 && !ignoreScroll) {
+		const auto now = getFinalActiveRange();
+		_requestShown.fire({ now.from, now.from + now.size });
+	}
 	_bar->update();
+}
+
+rpl::producer<ScrollToRequest> SubsectionSlider::requestShown() const {
+	return _requestShown.events();
 }
 
 int SubsectionSlider::sectionsCount() const {
@@ -416,6 +427,7 @@ rpl::producer<int> SubsectionSlider::sectionContextMenu() const {
 }
 
 int SubsectionSlider::lookupSectionPosition(int index) const {
+	Expects(!_tabs.empty());
 	Expects(index >= 0 && index < _tabs.size());
 
 	return _vertical ? _tabs[index]->y() : _tabs[index]->x();
