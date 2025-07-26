@@ -2,6 +2,10 @@ name: Linux
 
 on:
   workflow_dispatch:
+    inputs:
+      tagname:
+        description: 'Tag name to build'
+        required: true
 
 jobs:
   build:
@@ -15,10 +19,12 @@ jobs:
       - name: Set TAGNAME
         id: tagname
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.tagname }}" ]; then
             TAGNAME="${{ github.event.inputs.tagname }}"
-          else
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
             TAGNAME="${GITHUB_REF#refs/tags/}"
+          else
+            TAGNAME="${{ github.ref_name }}"
           fi
           echo "TAGNAME=$TAGNAME" >> $GITHUB_ENV
           echo "tagname=$TAGNAME" >> $GITHUB_OUTPUT
@@ -27,7 +33,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
-          ref: ${{ env.TAGNAME }}
 
       - name: Pull Docker IMG
         run: |
