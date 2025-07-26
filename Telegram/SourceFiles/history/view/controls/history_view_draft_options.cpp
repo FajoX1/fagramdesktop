@@ -718,8 +718,7 @@ void DraftOptionsBox(
 	state->link = args.usedLink;
 	state->quote = SelectedQuote{
 		replyItem,
-		draft.reply.quote,
-		draft.reply.quoteOffset,
+		{ draft.reply.quote, draft.reply.quoteOffset },
 	};
 	state->forward = std::move(args.forward);
 	state->webpage = draft.webpage;
@@ -783,7 +782,7 @@ void DraftOptionsBox(
 			box->setTitle(hasLink
 				? tr::lng_link_options_header()
 				: hasReply
-				? (state->quote.current().text.empty()
+				? (state->quote.current().highlight.quote.empty()
 					? tr::lng_reply_options_header()
 					: tr::lng_reply_options_quote())
 				: (forwardCount == 1)
@@ -807,10 +806,12 @@ void DraftOptionsBox(
 		auto result = draft.reply;
 		if (const auto current = state->quote.current()) {
 			result.messageId = current.item->fullId();
-			result.quote = current.text;
-			result.quoteOffset = current.offset;
+			result.quote = current.highlight.quote;
+			result.quoteOffset = current.highlight.quoteOffset;
+//			result.todoItemId = current.highlight.todoItemId;
 		} else {
 			result.quote = {};
+//			result.todoItemId = 0;
 		}
 		return result;
 	};
@@ -818,7 +819,7 @@ void DraftOptionsBox(
 			FullReplyTo result,
 			Data::WebPageDraft webpage,
 			std::optional<Data::ForwardOptions> options) {
-		const auto weak = Ui::MakeWeak(box);
+		const auto weak = base::make_weak(box);
 		auto forward = Data::ForwardDraft();
 		if (options) {
 			forward.options = *options;
@@ -827,7 +828,7 @@ void DraftOptionsBox(
 			}
 		}
 		done(std::move(result), std::move(webpage), std::move(forward));
-		if (const auto strong = weak.data()) {
+		if (const auto strong = weak.get()) {
 			strong->closeBox();
 		}
 	};
@@ -846,7 +847,7 @@ void DraftOptionsBox(
 			});
 		}
 
-		const auto weak = Ui::MakeWeak(box);
+		const auto weak = base::make_weak(box);
 		Settings::AddButtonWithIcon(
 			bottom,
 			tr::lng_reply_show_in_chat(),
@@ -854,7 +855,7 @@ void DraftOptionsBox(
 			{ &st::menuIconShowInChat }
 		)->setClickedCallback([=] {
 			highlight(resolveReply());
-			if (const auto strong = weak.data()) {
+			if (const auto strong = weak.get()) {
 				strong->closeBox();
 			}
 		});
@@ -1112,7 +1113,7 @@ void DraftOptionsBox(
 		state->quote.value(),
 		state->shown.value()
 	) | rpl::map([=](const SelectedQuote &quote, Section shown) {
-		return (quote.text.empty() || shown != Section::Reply)
+		return (quote.highlight.quote.empty() || shown != Section::Reply)
 			? tr::lng_settings_save()
 			: tr::lng_reply_quote_selected();
 	}) | rpl::flatten_latest();
@@ -1386,6 +1387,7 @@ void ShowReplyToChatBox(
 		history->setLocalDraft(std::make_unique<Data::Draft>(
 			textWithTags,
 			reply,
+			SuggestPostOptions(),
 			cursor,
 			Data::WebPageDraft()));
 		history->clearLocalEditDraft(topicRootId, monoforumPeerId);
@@ -1400,10 +1402,10 @@ void ShowReplyToChatBox(
 	};
 	auto callback = [=, chosen = std::move(chosen)](
 			Controller::Chosen thread) mutable {
-		const auto weak = Ui::MakeWeak(state->box);
+		const auto weak = base::make_weak(state->box);
 		if (!chosen(thread)) {
 			return;
-		} else if (const auto strong = weak.data()) {
+		} else if (const auto strong = weak.get()) {
 			strong->closeBox();
 		}
 	};

@@ -21,6 +21,7 @@ class SavedStarGiftId;
 } // namespace Data
 
 namespace Main {
+class Session;
 class SessionShow;
 } // namespace Main
 
@@ -71,6 +72,8 @@ void ShowUniqueGiftWearBox(
 	const Data::UniqueGift &gift,
 	Settings::GiftWearBoxStyleOverride st);
 
+void PreloadUniqueGiftResellPrices(not_null<Main::Session*> session);
+
 void UpdateGiftSellPrice(
 	std::shared_ptr<ChatHelpers::Show> show,
 	std::shared_ptr<Data::UniqueGift> unique,
@@ -81,6 +84,8 @@ void ShowUniqueGiftSellBox(
 	std::shared_ptr<Data::UniqueGift> unique,
 	Data::SavedStarGiftId savedId,
 	Settings::GiftWearBoxStyleOverride st);
+
+void GiftReleasedByHandler(not_null<PeerData*> peer);
 
 struct PatternPoint {
 	QPointF position;

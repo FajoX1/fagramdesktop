@@ -31,10 +31,12 @@ for i in "\$@"; do
 done
 exec /usr/bin/pkg-config --static "\$@"
 EOF
-RUN sed -i '/CMAKE_${lang}_FLAGS_DEBUG_INIT/s/")/ -O0 {% if LTO %}-fno-lto -fno-use-linker-plugin -fuse-ld=lld{% endif %}")/' /usr/share/cmake/Modules/Compiler/GNU.cmake
+RUN sed -i '/CMAKE_${lang}_FLAGS_DEBUG_INIT/s/")/ -O0 {% if LTO %}-fno-lto -fno-use-linker-plugin{% endif %} -fuse-ld=lld")/' /usr/share/cmake/Modules/Compiler/GNU.cmake
 RUN sed -i 's/NO_DEFAULT_PATH//g; s/PKG_CONFIG_ALLOW_SYSTEM_LIBS/PKG_CONFIG_IS_DUMB/g' /usr/share/cmake/Modules/FindPkgConfig.cmake
 RUN sed -i 's/set(OpenGL_GL_PREFERENCE "")/set(OpenGL_GL_PREFERENCE "LEGACY")/' /usr/share/cmake/Modules/FindOpenGL.cmake
 RUN sed -i '/Requires.private: valgrind/d' /usr/lib64/pkgconfig/libdrm.pc
+RUN sed -i 's/-lharfbuzz//' /usr/lib64/pkgconfig/harfbuzz.pc
+RUN sed -i 's/-lpng16//' /usr/lib64/pkgconfig/libpng16.pc
 RUN echo set debuginfod enabled on > /opt/rh/$TOOLSET/root/etc/gdbinit.d/00-debuginfod.gdb
 RUN adduser user
 
@@ -44,15 +46,19 @@ ENV RANLIB=gcc-ranlib
 ENV NM=gcc-nm
 ENV CFLAGS='{% if DEBUG %}-g{% endif %} -O3 {% if LTO %}-flto=auto -ffat-lto-objects{% endif %} -pipe -fPIC -fno-strict-aliasing -fexceptions -fasynchronous-unwind-tables -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -fhardened -Wno-hardened'
 ENV CXXFLAGS=$CFLAGS
-ENV LDFLAGS='{% if not LTO %}-fuse-ld=lld{% endif %} -static-libstdc++ -static-libgcc -static-libasan -pthread -ldl -Wl,--as-needed -Wl,-z,muldefs'
+ENV LDFLAGS='-static-libstdc++ -static-libgcc -static-libasan -pthread -Wl,--push-state,--no-as-needed,-ldl,--pop-state -Wl,--as-needed -Wl,-z,muldefs'
 
 ENV CMAKE_GENERATOR=Ninja
 ENV CMAKE_BUILD_TYPE=None
-ENV CMAKE_BUILD_PARALLEL_LEVEL=
+ENV CMAKE_BUILD_PARALLEL_LEVEL='{{ JOBS }}'
 
-RUN git clone --depth=1 https://github.com/yugr/Implib.so.git \
-	&& mkdir Implib.so/build \
-	&& cd Implib.so/build \
+RUN git init Implib.so \
+	&& cd Implib.so \
+	&& git remote add origin https://github.com/yugr/Implib.so.git \
+	&& git fetch --depth=1 origin ecf7bb51a92a0fb16834c5b698570ab25f9f1d21 \
+	&& git reset --hard FETCH_HEAD \
+	&& mkdir build \
+	&& cd build \
 	&& implib() { \
 		LIBFILE=$(basename $1); \
 		LIBNAME=$(basename $1 .so); \
@@ -85,7 +91,7 @@ FROM builder AS patches
 RUN git init patches \
 	&& cd patches \
 	&& git remote add origin https://github.com/desktop-app/patches.git \
-	&& git fetch --depth=1 origin a405719f0963abf7cb93354a390617c0f0d90f17 \
+	&& git fetch --depth=1 origin 1ffcb17817a2cab167061d530703842395291e69 \
 	&& git reset --hard FETCH_HEAD \
 	&& rm -rf .git
 
@@ -166,7 +172,7 @@ RUN git clone -b v1.5.2 --depth=1 https://github.com/xiph/opus.git \
 	&& rm -rf opus
 
 FROM builder AS dav1d
-RUN git clone -b 1.4.1 --depth=1 https://github.com/videolan/dav1d.git \
+RUN git clone -b 1.5.1 --depth=1 https://github.com/videolan/dav1d.git \
 	&& cd dav1d \
 	&& meson build \
 		--buildtype=plain \
@@ -179,7 +185,7 @@ RUN git clone -b 1.4.1 --depth=1 https://github.com/videolan/dav1d.git \
 	&& rm -rf dav1d
 
 FROM builder AS openh264
-RUN git clone -b v2.4.1 --depth=1 https://github.com/cisco/openh264.git \
+RUN git clone -b v2.6.0 --depth=1 https://github.com/cisco/openh264.git \
 	&& cd openh264 \
 	&& meson build \
 		--buildtype=plain \
@@ -190,7 +196,7 @@ RUN git clone -b v2.4.1 --depth=1 https://github.com/cisco/openh264.git \
 	&& rm -rf openh264
 
 FROM builder AS de265
-RUN git clone -b v1.0.15 --depth=1 https://github.com/strukturag/libde265.git \
+RUN git clone -b v1.0.16 --depth=1 https://github.com/strukturag/libde265.git \
 	&& cd libde265 \
 	&& cmake -B build . \
 		-DCMAKE_BUILD_TYPE=None \
@@ -223,7 +229,7 @@ RUN git init libvpx \
 	&& rm -rf libvpx
 
 FROM builder AS webp
-RUN git clone -b chrome-m116-5845 --depth=1 https://github.com/webmproject/libwebp.git \
+RUN git clone -b v1.5.0 --depth=1 https://github.com/webmproject/libwebp.git \
 	&& cd libwebp \
 	&& cmake -B build . \
 		-DWEBP_BUILD_ANIM_UTILS=OFF \
@@ -243,12 +249,12 @@ RUN git clone -b chrome-m116-5845 --depth=1 https://github.com/webmproject/libwe
 FROM builder AS avif
 COPY --link --from=dav1d /usr/src/dav1d-cache /
 
-RUN git clone -b v1.0.4 --depth=1 https://github.com/AOMediaCodec/libavif.git \
+RUN git clone -b v1.3.0 --depth=1 https://github.com/AOMediaCodec/libavif.git \
 	&& cd libavif \
-	&& sed -i 's/BUILD_SHARED_LIBS OR VCPKG_TARGET_TRIPLET/TRUE/' CMakeLists.txt \
 	&& cmake -B build . \
 		-DBUILD_SHARED_LIBS=OFF \
-		-DAVIF_CODEC_DAV1D=ON \
+		-DAVIF_CODEC_DAV1D=SYSTEM \
+		-DAVIF_LIBYUV=OFF \
 	&& cmake --build build \
 	&& DESTDIR=/usr/src/avif-cache cmake --install build \
 	&& cd .. \
@@ -257,7 +263,7 @@ RUN git clone -b v1.0.4 --depth=1 https://github.com/AOMediaCodec/libavif.git \
 FROM builder AS heif
 COPY --link --from=de265 /usr/src/de265-cache /
 
-RUN git clone -b v1.18.2 --depth=1 https://github.com/strukturag/libheif.git \
+RUN git clone -b v1.19.8 --depth=1 https://github.com/strukturag/libheif.git \
 	&& cd libheif \
 	&& cmake -B build . \
 		-DBUILD_SHARED_LIBS=OFF \
@@ -266,11 +272,13 @@ RUN git clone -b v1.18.2 --depth=1 https://github.com/strukturag/libheif.git \
 		-DWITH_X265=OFF \
 		-DWITH_AOM_DECODER=OFF \
 		-DWITH_AOM_ENCODER=OFF \
+		-DWITH_OpenH264_DECODER=OFF \
 		-DWITH_RAV1E=OFF \
 		-DWITH_RAV1E_PLUGIN=OFF \
 		-DWITH_SvtEnc=OFF \
 		-DWITH_SvtEnc_PLUGIN=OFF \
 		-DWITH_DAV1D=OFF \
+		-DWITH_LIBSHARPYUV=OFF \
 		-DWITH_EXAMPLES=OFF \
 	&& cmake --build build \
 	&& DESTDIR=/usr/src/heif-cache cmake --install build \
@@ -302,6 +310,7 @@ RUN git clone -b v0.11.1 --depth=1 https://github.com/libjxl/libjxl.git \
 	&& cmake --build build \
 	&& export DESTDIR=/usr/src/jxl-cache \
 	&& cmake --install build \
+	&& sed -i 's/-lstdc++//' $DESTDIR/usr/local/lib64/pkgconfig/libjxl*.pc \
 	&& rm $DESTDIR/usr/local/lib64/libjpeg.so* \
 	&& cp build/lib/libjpegli-static.a $DESTDIR/usr/local/lib64/libjpeg.a \
 	&& mkdir build/hwy \
@@ -352,7 +361,7 @@ RUN git clone -b xcb-util-wm-0.4.2 --depth=1 --recursive --shallow-submodules ht
 	&& rm -rf libxcb-wm
 
 FROM builder AS xcb-util
-RUN git clone -b xcb-util-0.4.1 --depth=1 --recursive --shallow-submodules https://github.com/gitlab-freedesktop-mirrors/libxcb-util.git \
+RUN git clone -b xcb-util-0.4.1-gitlab --depth=1 --recursive --shallow-submodules https://github.com/gitlab-freedesktop-mirrors/libxcb-util.git \
 	&& cd libxcb-util \
 	&& ./autogen.sh --enable-static --disable-shared \
 	&& make -j$(nproc) \
@@ -363,7 +372,7 @@ RUN git clone -b xcb-util-0.4.1 --depth=1 --recursive --shallow-submodules https
 FROM builder AS xcb-image
 COPY --link --from=xcb-util /usr/src/xcb-util-cache /
 
-RUN git clone -b xcb-util-image-0.4.1 --depth=1 --recursive --shallow-submodules https://github.com/gitlab-freedesktop-mirrors/libxcb-image.git \
+RUN git clone -b xcb-util-image-0.4.1-gitlab --depth=1 --recursive --shallow-submodules https://github.com/gitlab-freedesktop-mirrors/libxcb-image.git \
 	&& cd libxcb-image \
 	&& ./autogen.sh --enable-static --disable-shared \
 	&& make -j$(nproc) \
@@ -372,8 +381,12 @@ RUN git clone -b xcb-util-image-0.4.1 --depth=1 --recursive --shallow-submodules
 	&& rm -rf libxcb-image
 
 FROM builder AS xcb-keysyms
-RUN git clone -b xcb-util-keysyms-0.4.1 --depth=1 --recursive --shallow-submodules https://github.com/gitlab-freedesktop-mirrors/libxcb-keysyms.git \
+RUN git init libxcb-keysyms \
 	&& cd libxcb-keysyms \
+	&& git remote add origin https://github.com/gitlab-freedesktop-mirrors/libxcb-keysyms.git \
+	&& git fetch --depth=1 origin ef5cb393d27511ba511c68a54f8ff7b9aab4a384 \
+	&& git reset --hard FETCH_HEAD \
+	&& git submodule update --init --recursive --depth=1 \
 	&& ./autogen.sh --enable-static --disable-shared \
 	&& make -j$(nproc) \
 	&& make DESTDIR=/usr/src/xcb-keysyms-cache install \
@@ -381,8 +394,12 @@ RUN git clone -b xcb-util-keysyms-0.4.1 --depth=1 --recursive --shallow-submodul
 	&& rm -rf libxcb-keysyms
 
 FROM builder AS xcb-render-util
-RUN git clone -b xcb-util-renderutil-0.3.10 --depth=1 --recursive --shallow-submodules https://github.com/gitlab-freedesktop-mirrors/libxcb-render-util.git \
+RUN git init libxcb-render-util \
 	&& cd libxcb-render-util \
+	&& git remote add origin https://github.com/gitlab-freedesktop-mirrors/libxcb-render-util.git \
+	&& git fetch --depth=1 origin 5ad9853d6ddcac394d42dd2d4e34436b5db9da39 \
+	&& git reset --hard FETCH_HEAD \
+	&& git submodule update --init --recursive --depth=1 \
 	&& ./autogen.sh --enable-static --disable-shared \
 	&& make -j$(nproc) \
 	&& make DESTDIR=/usr/src/xcb-render-util-cache install \
@@ -394,9 +411,13 @@ COPY --link --from=xcb-util /usr/src/xcb-util-cache /
 COPY --link --from=xcb-image /usr/src/xcb-image-cache /
 COPY --link --from=xcb-render-util /usr/src/xcb-render-util-cache /
 
-RUN git clone -b xcb-util-cursor-0.1.4 --depth=1 --recursive --shallow-submodules https://github.com/gitlab-freedesktop-mirrors/libxcb-cursor.git \
+RUN git init libxcb-cursor \
 	&& cd libxcb-cursor \
-	&& ./autogen.sh --enable-static --disable-shared \
+	&& git remote add origin https://github.com/gitlab-freedesktop-mirrors/libxcb-cursor.git \
+	&& git fetch --depth=1 origin 4929f6051658ba5424b41703a1fb63f9db896065 \
+	&& git reset --hard FETCH_HEAD \
+	&& git submodule update --init --recursive --depth=1 \
+	&& ./autogen.sh --enable-static --disable-shared --with-cursorpath='~/.local/share/icons:~/.icons:/usr/share/icons:/usr/share/pixmaps' \
 	&& make -j$(nproc) \
 	&& make DESTDIR=/usr/src/xcb-cursor-cache install \
 	&& cd .. \
@@ -512,7 +533,7 @@ RUN git clone -b n6.1.1 --depth=1 https://github.com/FFmpeg/FFmpeg.git \
 	&& ./configure \
 		--extra-cflags="-fno-lto -DCONFIG_SAFE_BITSTREAM_READER=1" \
 		--extra-cxxflags="-fno-lto -DCONFIG_SAFE_BITSTREAM_READER=1" \
-		--extra-ldflags="-lstdc++" \
+		--extra-ldflags="-Wl,--push-state,--no-as-needed,-lstdc++,--pop-state" \
 		--disable-debug \
 		--disable-programs \
 		--disable-doc \
@@ -739,7 +760,6 @@ RUN git clone -b v$QT --depth=1 https://github.com/qt/qt5.git \
 	&& cmake -B build . \
 		-DCMAKE_INSTALL_PREFIX=/usr/local \
 		-DBUILD_SHARED_LIBS=OFF \
-		-DQT_GENERATE_SBOM=OFF \
 		-DQT_QPA_PLATFORMS="wayland;xcb" \
 		-DINPUT_libpng=qt \
 		-DINPUT_harfbuzz=qt \
@@ -796,7 +816,7 @@ RUN git init tg_owt \
 	&& rm -rf tg_owt
 
 FROM builder AS ada
-RUN git clone -b v3.2.2 --depth=1 https://github.com/ada-url/ada.git \
+RUN git clone -b v3.2.4 --depth=1 https://github.com/ada-url/ada.git \
 	&& cd ada \
 	&& cmake -B build . \
         -D ADA_TESTING=OFF \

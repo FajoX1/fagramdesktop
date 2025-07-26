@@ -88,7 +88,8 @@ MTPInputReplyTo ReplyToForMTP(
 					: Flag())
 				| (quoteEntities.v.isEmpty()
 					? Flag()
-					: Flag::f_quote_entities)),
+					: Flag::f_quote_entities)
+				| (replyTo.todoItemId ? Flag::f_todo_item_id : Flag())),
 			MTP_int(replyTo.messageId ? replyTo.messageId.msg : 0),
 			MTP_int(replyTo.topicRootId),
 			(external
@@ -99,7 +100,8 @@ MTPInputReplyTo ReplyToForMTP(
 			MTP_int(replyTo.quoteOffset),
 			(replyToMonoforumPeerId
 				? history->owner().peer(replyToMonoforumPeerId)->input
-				: MTPInputPeer()));
+				: MTPInputPeer()),
+			MTP_int(replyTo.todoItemId));
 	} else if (history->peer->amMonoforumAdmin()
 		&& replyTo.monoforumPeerId) {
 		const auto replyToMonoforumPeer = replyTo.monoforumPeerId
@@ -813,7 +815,7 @@ void Histories::deleteAllMessages(
 				channel->inputChannel,
 				MTP_int(deleteTillId)
 			)).done(finish).fail(finish).send();
-		} else if (revoke && chat && chat->amCreator()) {
+		} else if (!justClear && revoke && chat && chat->amCreator()) {
 			return session().api().request(MTPmessages_DeleteChat(
 				chat->inputChat
 			)).done(finish).fail([=](const MTP::Error &error) {

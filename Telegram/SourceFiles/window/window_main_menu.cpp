@@ -405,7 +405,7 @@ MainMenu::MainMenu(
 	_version->setLink(
 		2,
 		std::make_shared<LambdaClickHandler>([=] {
-			controller->show(Box<AboutBox>());
+			controller->show(Box(AboutBox));
 		}));
 
 	rpl::combine(
@@ -753,7 +753,7 @@ void MainMenu::setupMenu() {
 				tr::lng_theme_editor_cant_change_theme()));
 			return;
 		}
-		const auto weak = MakeWeak(this);
+		const auto weak = base::make_weak(this);
 		const auto toggle = [=] {
 			if (!weak) {
 				Window::Theme::ToggleNightMode();
@@ -943,7 +943,7 @@ base::EventFilterResult MainMenu::redirectToInnerChecked(not_null<QEvent*> e) {
 	if (_insideEventRedirect) {
 		return base::EventFilterResult::Continue;
 	}
-	const auto weak = Ui::MakeWeak(this);
+	const auto weak = base::make_weak(this);
 	_insideEventRedirect = true;
 	QGuiApplication::sendEvent(_inner, e);
 	if (weak) {

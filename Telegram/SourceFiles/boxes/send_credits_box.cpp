@@ -327,7 +327,7 @@ void SendCreditsBox(
 		const auto ministars = box->lifetime().make_state<MiniStars>(
 			ministarsContainer,
 			false,
-			Ui::Premium::MiniStars::Type::BiStars);
+			Ui::Premium::MiniStarsType::BiStars);
 		ministars->setColorOverride(Ui::Premium::CreditsIconGradientStops());
 
 		ministarsContainer->paintRequest(
@@ -397,7 +397,7 @@ void SendCreditsBox(
 			return;
 		}
 		const auto show = box->uiShow();
-		const auto weak = MakeWeak(box.get());
+		const auto weak = base::make_weak(box.get());
 		state->confirmButtonBusy = true;
 		session->api().request(
 			MTPpayments_SendStarsForm(
@@ -422,7 +422,7 @@ void SendCreditsBox(
 				auto error = ::Ui::MakeInformBox(
 					tr::lng_payments_precheckout_stars_failed(tr::now));
 				error->boxClosing() | rpl::start_with_next([=] {
-					if (const auto paybox = weak.data()) {
+					if (const auto paybox = weak.get()) {
 						paybox->closeBox();
 					}
 				}, error->lifetime());
@@ -487,6 +487,7 @@ void SendCreditsBox(
 		session->credits().load(true);
 		const auto balance = Settings::AddBalanceWidget(
 			content,
+			session,
 			session->credits().balanceValue(),
 			false);
 		rpl::combine(

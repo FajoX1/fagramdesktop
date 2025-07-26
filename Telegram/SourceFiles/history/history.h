@@ -79,6 +79,7 @@ public:
 
 	void monoforumChanged(Data::SavedMessages *old);
 	[[nodiscard]] bool amMonoforumAdmin() const;
+	[[nodiscard]] bool suggestDraftAllowed() const;
 
 	[[nodiscard]] not_null<History*> migrateToOrMe() const;
 	[[nodiscard]] History *migrateFrom() const;
@@ -601,10 +602,13 @@ private:
 	[[nodiscard]] Dialogs::BadgesState adjustBadgesStateByFolder(
 		Dialogs::BadgesState state) const;
 	[[nodiscard]] Dialogs::UnreadState computeUnreadState() const;
+	[[nodiscard]] Dialogs::UnreadState withMyMuted(
+		Dialogs::UnreadState state) const;
 	void setFolderPointer(Data::Folder *folder);
 
 	void hasUnreadMentionChanged(bool has) override;
 	void hasUnreadReactionChanged(bool has) override;
+	[[nodiscard]] bool useMyUnreadInParent() const;
 
 	const std::unique_ptr<HistoryMainElementDelegateMixin> _delegateMixin;
 

@@ -33,7 +33,8 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 namespace Settings {
 [[nodiscard]] not_null<Ui::RpWidget*> AddBalanceWidget(
 	not_null<Ui::RpWidget*> parent,
-	rpl::producer<StarsAmount> balanceValue,
+	not_null<Main::Session*> session,
+	rpl::producer<CreditsAmount> balanceValue,
 	bool rightAlign,
 	rpl::producer<float64> opacityValue = nullptr);
 } // namespace Settings
@@ -235,7 +236,7 @@ void AddArrowDown(not_null<RpWidget*> widget) {
 }
 
 void SelectShownPeer(
-		std::shared_ptr<QPointer<PopupMenu>> menu,
+		std::shared_ptr<base::weak_qptr<PopupMenu>> menu,
 		not_null<QWidget*> parent,
 		const std::vector<PaidReactionTop> &mine,
 		uint64 selected,
@@ -310,7 +311,7 @@ void FillTopReactors(
 		bool chosenChanged = false;
 	};
 	const auto state = wrap->lifetime().make_state<State>();
-	const auto menu = std::make_shared<QPointer<Ui::PopupMenu>>();
+	const auto menu = std::make_shared<base::weak_qptr<Ui::PopupMenu>>();
 
 	rpl::combine(
 		std::move(chosen),
@@ -572,6 +573,7 @@ void PaidReactionsBox(
 	{
 		const auto balance = Settings::AddBalanceWidget(
 			content,
+			args.session,
 			std::move(args.balanceValue),
 			false);
 		rpl::combine(

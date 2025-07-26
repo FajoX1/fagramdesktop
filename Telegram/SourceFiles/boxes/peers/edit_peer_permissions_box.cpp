@@ -164,11 +164,15 @@ constexpr auto kDefaultChargeStars = 10;
 	auto stories = std::vector<AdminRightLabel>{
 		{ Flag::PostStories, tr::lng_rights_channel_post_stories(tr::now) },
 		{ Flag::EditStories, tr::lng_rights_channel_edit_stories(tr::now) },
-		{ Flag::DeleteStories, tr::lng_rights_channel_delete_stories(tr::now) },
+		{
+			Flag::DeleteStories,
+			tr::lng_rights_channel_delete_stories(tr::now),
+		},
 	};
 	auto second = std::vector<AdminRightLabel>{
 		{ Flag::InviteByLinkOrAdd, tr::lng_rights_group_invite(tr::now) },
 		{ Flag::ManageCall, tr::lng_rights_channel_manage_calls(tr::now) },
+		{ Flag::ManageDirect, tr::lng_rights_channel_manage_direct(tr::now) },
 		{ Flag::AddAdmins, tr::lng_rights_add_admins(tr::now) },
 	};
 	return {
@@ -1175,7 +1179,7 @@ void ShowEditPeerPermissionsBox(
 	if (available) {
 		Ui::AddSkip(inner);
 		const auto starsPerMessage = peer->isChannel()
-			? peer->asChannel()->starsPerMessage()
+			? peer->asChannel()->commonStarsPerMessage()
 			: 0;
 		charging = inner->add(object_ptr<Ui::SettingsButton>(
 			inner,

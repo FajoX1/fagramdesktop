@@ -7,12 +7,16 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 */
 #include "history/view/history_view_message.h"
 
+#include "api/api_suggest_post.h"
+#include "base/unixtime.h"
 #include "core/click_handler_types.h" // ClickHandlerContext
 #include "core/ui_integration.h"
 #include "history/view/history_view_cursor_state.h"
 #include "history/history_item_components.h"
 #include "history/history_item_helpers.h"
+#include "history/view/media/history_view_media_generic.h"
 #include "history/view/media/history_view_web_page.h"
+#include "history/view/media/history_view_suggest_decision.h"
 #include "history/view/reactions/history_view_reactions.h"
 #include "history/view/reactions/history_view_reactions_button.h"
 #include "history/view/history_view_group_call_bar.h" // UserpicInRow.
@@ -23,11 +27,11 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 #include "boxes/share_box.h"
 #include "ui/effects/glare.h"
 #include "ui/effects/reaction_fly_animation.h"
-#include "ui/rect.h"
-#include "ui/round_rect.h"
 #include "ui/text/text_utilities.h"
 #include "ui/text/text_extended_data.h"
 #include "ui/power_saving.h"
+#include "ui/rect.h"
+#include "ui/round_rect.h"
 #include "data/components/factchecks.h"
 #include "data/components/sponsored_messages.h"
 #include "data/data_session.h"
@@ -417,7 +421,9 @@ Message::Message(
 , _bottomInfo(
 		&data->history()->owner().reactions(),
 		BottomInfoDataFromMessage(this)) {
-	if (const auto media = data->media()) {
+	if (data->Get<HistoryMessageSuggestedPost>()) {
+		_hideReply = 1;
+	} else if (const auto media = data->media()) {
 		if (media->giveawayResults()) {
 			_hideReply = 1;
 		}
@@ -451,9 +457,35 @@ Message::~Message() {
 	}
 }
 
+void Message::refreshSuggestedInfo(
+		not_null<HistoryItem*> item,
+		not_null<const HistoryMessageSuggestedPost*> suggest,
+		const HistoryMessageReply *replyData) {
+	const auto link = (replyData && replyData->resolvedMessage)
+		? JumpToMessageClickHandler(
+			replyData->resolvedMessage.get(),
+			item->fullId())
+		: ClickHandlerPtr();
+	setServicePreMessage({}, link, std::make_unique<MediaGeneric>(
+		this,
+		GenerateSuggestRequestMedia(this, suggest),
+		MediaGenericDescriptor{
+			.maxWidth = st::chatSuggestWidth,
+			.fullAreaLink = link,
+			.service = true,
+			.hideServiceText = true,
+		}));
+}
+
 void Message::initPaidInformation() {
 	const auto item = data();
-	if (!item->history()->peer->isUser()) {
+	if (item->history()->peer->isMonoforum()) {
+		if (const auto suggest = item->Get<HistoryMessageSuggestedPost>()) {
+			const auto replyData = item->Get<HistoryMessageReply>();
+			refreshSuggestedInfo(item, suggest, replyData);
+		}
+		return;
+	} else if (!item->history()->peer->isUser()) {
 		return;
 	}
 	const auto media = this->media();
@@ -810,6 +842,29 @@ QSize Message::performCountOptimalSize() {
 		AddComponents(Reply::Bit());
 	} else {
 		RemoveComponents(Reply::Bit());
+	}
+
+	if (item->history()->peer->isMonoforum()) {
+		if (const auto suggest = item->Get<HistoryMessageSuggestedPost>()) {
+			if (const auto service = Get<ServicePreMessage>()) {
+				// Ok, we didn't have the message, but now we have.
+				// That means this is not a plain post suggestion,
+				// but a suggestion of changes to previous suggestion.
+				if (service->media
+					&& !service->handler
+					&& replyData
+					&& replyData->resolvedMessage) {
+					refreshSuggestedInfo(item, suggest, replyData);
+				}
+			}
+		}
+	}
+
+	if (const auto postSender = item->discussionPostOriginalSender()) {
+		if (!postSender->isFullLoaded()) {
+			// We need it for available reactions list.
+			postSender->updateFull();
+		}
 	}
 
 	const auto factcheck = item->Get<HistoryMessageFactcheck>();
@@ -3250,7 +3305,7 @@ TextSelection Message::selectionFromQuote(
 		const SelectedQuote &quote) const {
 	Expects(quote.item != nullptr);
 
-	if (quote.text.empty()) {
+	if (quote.highlight.quote.empty()) {
 		return {};
 	}
 	const auto item = quote.item;
@@ -3692,7 +3747,7 @@ bool Message::hasFromName() const {
 	case Context::AdminLog:
 		return true;
 	case Context::Monoforum:
-		return data()->out();
+		return data()->out() || data()->from()->isChannel();
 	case Context::History:
 	case Context::ChatPreview:
 	case Context::TTLViewer:
@@ -3852,6 +3907,9 @@ int Message::minWidthForMedia() const {
 			+ st::historyCommentsSkipRight;
 		accumulate_max(result, added + st::semiboldFont->width(
 			tr::lng_replies_view_original(tr::now)));
+	}
+	if (const auto keyboard = data()->inlineReplyKeyboard()) {
+		accumulate_max(result, keyboard->naturalWidth());
 	}
 	return result;
 }

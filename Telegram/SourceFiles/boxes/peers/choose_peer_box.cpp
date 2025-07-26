@@ -75,16 +75,12 @@ using RightsMap = std::vector<std::pair<ChatAdminRight, tr::phrase<>>>;
 	using Flag = ChatAdminRight;
 	return {
 		{ Flag::ChangeInfo, tr::lng_request_group_change_info },
-		{
-			Flag::DeleteMessages,
-			tr::lng_request_group_delete_messages },
+		{ Flag::DeleteMessages, tr::lng_request_group_delete_messages },
 		{ Flag::BanUsers, tr::lng_request_group_ban_users },
 		{ Flag::InviteByLinkOrAdd, tr::lng_request_group_invite },
 		{ Flag::PinMessages, tr::lng_request_group_pin_messages },
 		{ Flag::ManageTopics, tr::lng_request_group_manage_topics },
-		{
-			Flag::ManageCall,
-			tr::lng_request_group_manage_video_chats },
+		{ Flag::ManageCall, tr::lng_request_group_manage_video_chats },
 		{ Flag::Anonymous, tr::lng_request_group_anonymous },
 		{ Flag::AddAdmins, tr::lng_request_group_add_admins },
 	};
@@ -94,21 +90,12 @@ using RightsMap = std::vector<std::pair<ChatAdminRight, tr::phrase<>>>;
 	using Flag = ChatAdminRight;
 	return {
 		{ Flag::ChangeInfo, tr::lng_request_channel_change_info },
-		{
-			Flag::PostMessages,
-			tr::lng_request_channel_post_messages },
-		{
-			Flag::EditMessages,
-			tr::lng_request_channel_edit_messages },
-		{
-			Flag::DeleteMessages,
-			tr::lng_request_channel_delete_messages },
-		{
-			Flag::InviteByLinkOrAdd,
-			tr::lng_request_channel_add_subscribers },
-		{
-			Flag::ManageCall,
-			tr::lng_request_channel_manage_livestreams },
+		{ Flag::PostMessages, tr::lng_request_channel_post_messages },
+		{ Flag::EditMessages, tr::lng_request_channel_edit_messages },
+		{ Flag::DeleteMessages, tr::lng_request_channel_delete_messages },
+		{ Flag::InviteByLinkOrAdd, tr::lng_request_channel_add_subscribers },
+		{ Flag::ManageCall, tr::lng_request_channel_manage_livestreams },
+		{ Flag::ManageDirect, tr::lng_request_channel_manage_direct },
 		{ Flag::AddAdmins, tr::lng_request_channel_add_admins },
 	};
 }
@@ -259,10 +246,10 @@ object_ptr<Ui::BoxContent> CreatePeerByQueryBox(
 		not_null<UserData*> bot,
 		RequestPeerQuery query,
 		Fn<void(std::vector<not_null<PeerData*>>)> done) {
-	const auto weak = std::make_shared<QPointer<Ui::BoxContent>>();
+	const auto weak = std::make_shared<base::weak_qptr<Ui::BoxContent>>();
 	auto callback = [=](not_null<PeerData*> peer) {
 		done({ peer });
-		if (const auto strong = weak->data()) {
+		if (const auto strong = weak->get()) {
 			strong->closeBox();
 		}
 	};
@@ -519,11 +506,11 @@ void ShowChoosePeerBox(
 		});
 		return;
 	}
-	const auto weak = std::make_shared<QPointer<Ui::BoxContent>>();
+	const auto weak = std::make_shared<base::weak_qptr<Ui::BoxContent>>();
 	auto callback = [=, done = std::move(chosen)](
 			std::vector<not_null<PeerData*>> peers) {
 		done(std::move(peers));
-		if (const auto strong = weak->data()) {
+		if (const auto strong = weak->get()) {
 			strong->closeBox();
 		}
 	};

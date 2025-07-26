@@ -11,6 +11,7 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 #include "api/api_sending.h"
 #include "apiwrap.h"
 #include "base/random.h"
+#include "ui/effects/premium_stars.h"
 #include "boxes/premium_preview_box.h"
 #include "chat_helpers/stickers_lottie.h"
 #include "core/click_handler_types.h"
@@ -75,7 +76,7 @@ public:
 	TextWithEntities subtitle() override;
 	int buttonSkip() override;
 	rpl::producer<QString> button() override;
-	bool buttonMinistars() override;
+	std::optional<Ui::Premium::MiniStarsType> buttonMinistars() override;
 	void draw(
 		Painter &p,
 		const PaintContext &context,
@@ -432,8 +433,9 @@ rpl::producer<QString> EmptyChatLockedBox::button() {
 		: tr::lng_send_charges_stars_go();
 }
 
-bool EmptyChatLockedBox::buttonMinistars() {
-	return true;
+auto EmptyChatLockedBox::buttonMinistars()
+-> std::optional<Ui::Premium::MiniStarsType> {
+	return Ui::Premium::MiniStarsType::SlowStars;
 }
 
 TextWithEntities EmptyChatLockedBox::subtitle() {
@@ -619,6 +621,8 @@ void AboutView::make(Data::ChatIntro data, bool preview) {
 	const auto sendIntroSticker = [=](not_null<DocumentData*> sticker) {
 		_sendIntroSticker.fire_copy(sticker);
 	};
+	owned->data()->setCustomServiceLink(
+		std::make_shared<LambdaClickHandler>(handler));
 	owned->overrideMedia(std::make_unique<HistoryView::MediaGeneric>(
 		owned.get(),
 		GenerateChatIntro(
@@ -629,7 +633,6 @@ void AboutView::make(Data::ChatIntro data, bool preview) {
 			sendIntroSticker),
 		HistoryView::MediaGenericDescriptor{
 			.maxWidth = st::chatIntroWidth,
-			.serviceLink = std::make_shared<LambdaClickHandler>(handler),
 			.service = true,
 			.hideServiceText = preview || text.isEmpty(),
 		}));

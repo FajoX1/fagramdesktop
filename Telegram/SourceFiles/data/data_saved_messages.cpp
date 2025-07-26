@@ -82,6 +82,20 @@ void SavedMessages::clear() {
 	_owningHistory = nullptr;
 }
 
+void SavedMessages::saveActiveSubsectionThread(not_null<Thread*> thread) {
+	if (const auto sublist = thread->asSublist()) {
+		Assert(sublist->parent() == this);
+		_activeSubsectionSublist = sublist;
+	} else {
+		Assert(thread == _owningHistory);
+		_activeSubsectionSublist = nullptr;
+	}
+}
+
+Thread *SavedMessages::activeSubsectionThread() const {
+	return _activeSubsectionSublist;
+}
+
 SavedMessages::~SavedMessages() {
 	clear();
 }
@@ -432,6 +446,9 @@ void SavedMessages::applySublistDeleted(not_null<PeerData*> sublistPeer) {
 
 	if (ranges::contains(_lastSublists, not_null(raw))) {
 		reorderLastSublists();
+	}
+	if (_activeSubsectionSublist == raw) {
+		_activeSubsectionSublist = nullptr;
 	}
 
 	_sublistDestroyed.fire(raw);

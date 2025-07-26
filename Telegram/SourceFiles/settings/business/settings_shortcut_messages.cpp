@@ -58,6 +58,7 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 #include "ui/painter.h"
 #include "window/themes/window_theme.h"
 #include "window/section_widget.h"
+#include "window/window_peer_menu.h"
 #include "window/window_session_controller.h"
 #include "styles/style_boxes.h"
 #include "styles/style_chat_helpers.h"
@@ -177,7 +178,7 @@ private:
 	bool cornerButtonsUnreadMayBeShown() override;
 	bool cornerButtonsHas(CornerButtonType type) override;
 
-	QPointer<Ui::RpWidget> createPinnedToBottom(
+	base::weak_qptr<Ui::RpWidget> createPinnedToBottom(
 		not_null<Ui::RpWidget*> parent) override;
 	void setupComposeControls();
 	void processScroll();
@@ -399,6 +400,8 @@ ShortcutMessages::ShortcutMessages(
 				_composeControls->editMessage(
 					fullId,
 					_inner->getSelectedTextRange(item));
+			} else if (media->todolist()) {
+				Window::PeerMenuEditTodoList(_controller, item);
 			}
 		}
 	}, _inner->lifetime());
@@ -629,6 +632,7 @@ void ShortcutMessages::setupComposeControls() {
 		.key = Dialogs::Key{ _history },
 		.section = Dialogs::EntryState::Section::ShortcutMessages,
 		.currentReplyTo = replyTo(),
+		.currentSuggest = SuggestPostOptions(),
 	};
 	_composeControls->setCurrentDialogsEntryState(state);
 
@@ -769,7 +773,7 @@ void ShortcutMessages::setupComposeControls() {
 	}, lifetime());
 }
 
-QPointer<Ui::RpWidget> ShortcutMessages::createPinnedToBottom(
+base::weak_qptr<Ui::RpWidget> ShortcutMessages::createPinnedToBottom(
 		not_null<Ui::RpWidget*> parent) {
 	auto placeholder = rpl::deferred([=] {
 		return _shortcutId.value();

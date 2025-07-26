@@ -56,7 +56,6 @@ void HandleWithdrawalButton(
 		? &currencyReceiver->session()
 		: &creditsReceiver->session());
 
-	using ChannelOutUrl = MTPstats_BroadcastRevenueWithdrawalUrl;
 	using CreditsOutUrl = MTPpayments_StarsRevenueWithdrawalUrl;
 
 	session->api().cloudPassword().reload();
@@ -83,7 +82,7 @@ void HandleWithdrawalButton(
 			fields.customSubmitButton = tr::lng_passcode_submit();
 			fields.customCheckCallback = crl::guard(button, [=](
 					const Core::CloudPasswordResult &result,
-					QPointer<PasscodeBox> box) {
+					base::weak_qptr<PasscodeBox> box) {
 				const auto done = [=](const QString &result) {
 					if (!result.isEmpty()) {
 						UrlClickHandler::Open(result);
@@ -98,19 +97,19 @@ void HandleWithdrawalButton(
 						show->showToast(message);
 					}
 				};
-				if (currencyReceiver) {
-					session->api().request(
-						MTPstats_GetBroadcastRevenueWithdrawalUrl(
-							currencyReceiver->input,
-							result.result
-					)).done([=](const ChannelOutUrl &r) {
-						done(qs(r.data().vurl()));
-					}).fail(fail).send();
-				} else if (creditsReceiver) {
+				if (currencyReceiver || creditsReceiver) {
+					using F = MTPpayments_getStarsRevenueWithdrawalUrl::Flag;
 					session->api().request(
 						MTPpayments_GetStarsRevenueWithdrawalUrl(
-							creditsReceiver->input,
-							MTP_long(receiver.creditsAmount()),
+							MTP_flags(currencyReceiver
+								? F::f_ton
+								: F::f_amount),
+							currencyReceiver
+								? currencyReceiver->input
+								: creditsReceiver->input,
+							MTP_long(creditsReceiver
+								? receiver.creditsAmount()
+								: 0),
 							result.result
 					)).done([=](const CreditsOutUrl &r) {
 						done(qs(r.data().vurl()));
@@ -138,17 +137,19 @@ void HandleWithdrawalButton(
 				processOut();
 			}
 		};
-		if (currencyReceiver) {
-			session->api().request(
-				MTPstats_GetBroadcastRevenueWithdrawalUrl(
-					currencyReceiver->input,
-					MTP_inputCheckPasswordEmpty()
-			)).fail(fail).send();
-		} else if (creditsReceiver) {
+		if (currencyReceiver || creditsReceiver) {
+			using F = MTPpayments_getStarsRevenueWithdrawalUrl::Flag;
 			session->api().request(
 				MTPpayments_GetStarsRevenueWithdrawalUrl(
-					creditsReceiver->input,
-					MTP_long(receiver.creditsAmount()),
+					MTP_flags(currencyReceiver
+						? F::f_ton
+						: F::f_amount),
+					currencyReceiver
+						? currencyReceiver->input
+						: creditsReceiver->input,
+					MTP_long(creditsReceiver
+						? receiver.creditsAmount()
+						: 0),
 					MTP_inputCheckPasswordEmpty()
 			)).fail(fail).send();
 		}

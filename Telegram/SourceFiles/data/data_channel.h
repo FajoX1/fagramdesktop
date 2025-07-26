@@ -81,7 +81,10 @@ enum class ChannelDataFlag : uint64 {
 	AutoTranslation = (1ULL << 38),
 	Monoforum = (1ULL << 39),
 	MonoforumAdmin = (1ULL << 40),
-	ForumTabs = (1ULL << 41),
+	MonoforumDisabled = (1ULL << 41),
+	ForumTabs = (1ULL << 42),
+	HasStarsPerMessage = (1ULL << 43),
+	StarsPerMessageKnown = (1ULL << 44),
 };
 inline constexpr bool is_flag_type(ChannelDataFlag) { return true; };
 using ChannelDataFlags = base::flags<ChannelDataFlag>;
@@ -279,6 +282,12 @@ public:
 	[[nodiscard]] bool paidMessagesAvailable() const {
 		return flags() & Flag::PaidMessagesAvailable;
 	}
+	[[nodiscard]] bool hasStarsPerMessage() const {
+		return flags() & Flag::HasStarsPerMessage;
+	}
+	[[nodiscard]] bool starsPerMessageKnown() const {
+		return flags() & Flag::StarsPerMessageKnown;
+	}
 	[[nodiscard]] bool useSubsectionTabs() const;
 
 	[[nodiscard]] static ChatRestrictionsInfo KickedRestrictedRights(
@@ -432,6 +441,7 @@ public:
 
 	void setMonoforumLink(ChannelData *link);
 	[[nodiscard]] ChannelData *monoforumLink() const;
+	[[nodiscard]] bool monoforumDisabled() const;
 
 	void ptsInit(int32 pts) {
 		_ptsWaiter.init(pts);
@@ -492,6 +502,7 @@ public:
 
 	void setStarsPerMessage(int stars);
 	[[nodiscard]] int starsPerMessage() const;
+	[[nodiscard]] int commonStarsPerMessage() const;
 
 	[[nodiscard]] int peerGiftsCount() const;
 	void setPeerGiftsCount(int count);

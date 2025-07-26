@@ -22,6 +22,7 @@ namespace Ui {
 class DynamicImage;
 class RippleAnimation;
 class SubsectionButton;
+struct ScrollToRequest;
 
 struct SubsectionTab {
 	TextWithEntities text;
@@ -80,7 +81,7 @@ public:
 	void setSections(
 		SubsectionTabs sections,
 		Fn<bool()> paused);
-	void setActiveSectionFast(int active);
+	void setActiveSectionFast(int active, bool ignoreScroll = false);
 
 	[[nodiscard]] int sectionsCount() const;
 	[[nodiscard]] rpl::producer<int> sectionActivated() const;
@@ -94,6 +95,8 @@ public:
 		not_null<QContextMenuEvent*> e) override;
 	Text::MarkedContext buttonContext() override;
 	[[nodiscard]] not_null<SubsectionButton*> buttonAt(int index);
+
+	[[nodiscard]] rpl::producer<ScrollToRequest> requestShown() const;
 
 protected:
 	struct Range {
@@ -136,6 +139,8 @@ protected:
 	rpl::event_stream<int> _sectionActivated;
 	rpl::event_stream<int> _sectionContextMenu;
 	Fn<bool()> _paused;
+
+	rpl::event_stream<ScrollToRequest> _requestShown;
 
 };
 

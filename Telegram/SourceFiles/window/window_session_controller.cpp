@@ -55,6 +55,7 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 #include "data/data_peer_values.h"
 #include "data/data_premium_limits.h"
 #include "data/data_web_page.h"
+#include "dialogs/ui/chat_search_in.h"
 #include "passport/passport_form_controller.h"
 #include "chat_helpers/tabbed_selector.h"
 #include "chat_helpers/emoji_interactions.h"
@@ -359,6 +360,14 @@ void DateClickHandler::onClick(ClickContext context) const {
 	}
 }
 
+MessageHighlightId SearchHighlightId(const QString &query) {
+	auto result = MessageHighlightId{ .quote = { query } };
+	if (!result.quote.empty()) {
+		result.quoteOffset = kSearchQueryOffsetHint;
+	}
+	return result;
+}
+
 SessionNavigation::SessionNavigation(not_null<Main::Session*> session)
 : _session(session)
 , _api(&_session->mtp()) {
@@ -588,7 +597,8 @@ void SessionNavigation::showPeerByLinkResolved(
 		if (const auto forum = peer->forum()) {
 			if (controller->windowId().hasChatsList()
 				&& !controller->adaptive().isOneColumn()
-				&& controller->shownForum().current() != forum) {
+				&& controller->shownForum().current() != forum
+				&& !forum->channel()->useSubsectionTabs()) {
 				controller->showForum(forum);
 			}
 		}
@@ -1014,14 +1024,14 @@ void SessionNavigation::applyBoost(
 			}
 			done({});
 		} else {
-			const auto weak = std::make_shared<QPointer<Ui::BoxContent>>();
+			const auto weak = std::make_shared<base::weak_qptr<Ui::BoxContent>>();
 			const auto reassign = [=](
 					std::vector<int> slots,
 					int groups,
 					int channels) {
 				const auto count = int(slots.size());
 				const auto callback = [=](Ui::BoostCounters counters) {
-					if (const auto strong = weak->data()) {
+					if (const auto strong = weak->get()) {
 						strong->closeBox();
 					}
 					done(counters);
@@ -1146,8 +1156,7 @@ void SessionNavigation::showRepliesForMessage(
 					.repliesRootId = rootId,
 				},
 				commentId,
-				params.highlightPart,
-				params.highlightPartOffsetHint);
+				params.highlight);
 			memento->setFromTopic(topic);
 			showSection(std::move(memento), params);
 			return;
@@ -1269,8 +1278,7 @@ void SessionNavigation::showSublist(
 			.sublist = sublist,
 		},
 		itemId,
-		params.highlightPart,
-		params.highlightPartOffsetHint);
+		params.highlight);
 	showSection(std::move(memento), params);
 }
 
@@ -1809,10 +1817,13 @@ void SessionController::activateFirstChatsFilter() {
 	}
 }
 
-bool SessionController::uniqueChatsInSearchResults() const {
+bool SessionController::uniqueChatsInSearchResults(
+		const Dialogs::SearchState &state) const {
+	const auto global = (state.tab == Dialogs::ChatSearchTab::MyMessages)
+		|| (state.tab == Dialogs::ChatSearchTab::PublicPosts);
 	return session().supportMode()
 		&& !session().settings().supportAllSearchResults()
-		&& !_searchInChat.current();
+		&& (global || !state.inChat);
 }
 
 bool SessionController::openFolderInDifferentWindow(
@@ -1882,10 +1893,15 @@ bool SessionController::showForumInDifferentWindow(
 void SessionController::showForum(
 		not_null<Data::Forum*> forum,
 		const SectionShow &params) {
+	const auto forced = params.forceTopicsList;
 	if (showForumInDifferentWindow(forum, params)) {
 		return;
-	} else if (forum->channel()->useSubsectionTabs()) {
-		showPeerHistory(forum->channel(), params);
+	} else if (!forced && forum->channel()->useSubsectionTabs()) {
+		if (const auto active = forum->activeSubsectionThread()) {
+			showThread(active, ShowAtUnreadMsgId, params);
+		} else {
+			showPeerHistory(forum->channel(), params);
+		}
 		return;
 	}
 	_shownForumLifetime.destroy();
@@ -1916,20 +1932,26 @@ void SessionController::showForum(
 			});
 		}
 	};
+	content()->showForum(forum, params);
+	if (_shownForum.current() != forum) {
+		return;
+	}
+
 	forum->destroyed(
 	) | rpl::start_with_next([=] {
 		closeAndShowHistory(false);
 	}, _shownForumLifetime);
-	using FlagChange = Data::Flags<ChannelDataFlags>::Change;
-	forum->channel()->flagsValue(
-	) | rpl::start_with_next([=](FlagChange change) {
-		if (change.diff & ChannelDataFlag::ForumTabs) {
-			if (HistoryView::SubsectionTabs::UsedFor(history)) {
-				closeAndShowHistory(true);
+	if (!forced) {
+		using FlagChange = Data::Flags<ChannelDataFlags>::Change;
+		forum->channel()->flagsValue(
+		) | rpl::start_with_next([=](FlagChange change) {
+			if (change.diff & ChannelDataFlag::ForumTabs) {
+				if (HistoryView::SubsectionTabs::UsedFor(history)) {
+					closeAndShowHistory(true);
+				}
 			}
-		}
-	}, _shownForumLifetime);
-	content()->showForum(forum, params);
+		}, _shownForumLifetime);
+	}
 }
 
 void SessionController::closeForum() {
@@ -1999,9 +2021,9 @@ void SessionController::setActiveChatEntry(Dialogs::RowDescriptor row) {
 			Data::PeerFlagValue(
 				channel,
 				ChannelData::Flag::Forum
-			) | rpl::filter(
-				rpl::mappers::_1
-			) | rpl::start_with_next([=] {
+			) | rpl::filter([=](bool forum) {
+				return forum && !channel->useSubsectionTabs();
+			}) | rpl::start_with_next([=] {
 				clearSectionStack(
 					{ anim::type::normal, anim::activation::background });
 				showForum(channel->forum(),
@@ -2109,9 +2131,13 @@ bool SessionController::switchInlineQuery(
 		&& to.currentReplyTo.quote.empty()) {
 		to.currentReplyTo.messageId.msg = MsgId();
 	}
+	if (!history->suggestDraftAllowed()) {
+		to.currentSuggest = SuggestPostOptions();
+	}
 	auto draft = std::make_unique<Data::Draft>(
 		textWithTags,
 		to.currentReplyTo,
+		to.currentSuggest,
 		cursor,
 		Data::WebPageDraft());
 
@@ -2915,7 +2941,7 @@ auto SessionController::stickerOrEmojiChosen() const
 	return _stickerOrEmojiChosen.events();
 }
 
-QPointer<Ui::BoxContent> SessionController::show(
+base::weak_qptr<Ui::BoxContent> SessionController::show(
 		object_ptr<Ui::BoxContent> content,
 		Ui::LayerOptions options,
 		anim::type animated) {

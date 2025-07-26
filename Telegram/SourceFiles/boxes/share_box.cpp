@@ -679,7 +679,7 @@ void ShareBox::submit(Api::SendOptions options) {
 	_submitLifetime.destroy();
 
 	auto threads = _inner->selected();
-	const auto weak = Ui::MakeWeak(this);
+	const auto weak = base::make_weak(this);
 	const auto field = _comment->entity();
 	auto comment = field->getTextWithAppliedMarkdown();
 	const auto checkPaid = [=] {
@@ -1373,8 +1373,8 @@ void ShareBox::Inner::changeCheckState(Chat *chat) {
 }
 
 void ShareBox::Inner::chooseForumTopic(not_null<Data::Forum*> forum) {
-	const auto guard = Ui::MakeWeak(this);
-	const auto weak = std::make_shared<QPointer<Ui::BoxContent>>();
+	const auto guard = base::make_weak(this);
+	const auto weak = std::make_shared<base::weak_qptr<Ui::BoxContent>>();
 	auto chosen = [=](not_null<Data::ForumTopic*> topic) {
 		if (const auto strong = *weak) {
 			strong->closeBox();
@@ -1421,8 +1421,8 @@ void ShareBox::Inner::chooseForumTopic(not_null<Data::Forum*> forum) {
 
 void ShareBox::Inner::chooseMonoforumSublist(
 		not_null<Data::SavedMessages*> monoforum) {
-	const auto guard = Ui::MakeWeak(this);
-	const auto weak = std::make_shared<QPointer<Ui::BoxContent>>();
+	const auto guard = base::make_weak(this);
+	const auto weak = std::make_shared<base::weak_qptr<Ui::BoxContent>>();
 	auto chosen = [=](not_null<Data::SavedSublist*> sublist) {
 		if (const auto strong = *weak) {
 			strong->closeBox();
@@ -1771,7 +1771,8 @@ ShareBox::SubmitCallback ShareBox::DefaultForwardCallback(
 						? Flag::f_quick_reply_shortcut
 						: Flag(0))
 					| (starsPaid ? Flag::f_allow_paid_stars : Flag())
-					| (sublistPeer ? Flag::f_reply_to : Flag());
+					| (sublistPeer ? Flag::f_reply_to : Flag())
+					| (options.suggest ? Flag::f_suggested_post : Flag());
 				threadHistory->sendRequestId = api.request(
 					MTPmessages_ForwardMessages(
 						MTP_flags(sendFlags),
@@ -1787,7 +1788,8 @@ ShareBox::SubmitCallback ShareBox::DefaultForwardCallback(
 						MTP_inputPeerEmpty(), // send_as
 						Data::ShortcutIdToMTP(session, options.shortcutId),
 						MTP_int(videoTimestamp.value_or(0)),
-						MTP_long(starsPaid)
+						MTP_long(starsPaid),
+						Api::SuggestToMTP(options.suggest)
 				)).done([=](const MTPUpdates &updates, mtpRequestId reqId) {
 					threadHistory->session().api().applyUpdates(updates);
 					state->requests.remove(reqId);
@@ -1954,7 +1956,7 @@ void FastShareLink(
 		std::shared_ptr<Main::SessionShow> show,
 		const QString &url,
 		ShareBoxStyleOverrides st) {
-	const auto box = std::make_shared<QPointer<Ui::BoxContent>>();
+	const auto box = std::make_shared<base::weak_qptr<Ui::BoxContent>>();
 	const auto sending = std::make_shared<bool>();
 	auto copyCallback = [=] {
 		QGuiApplication::clipboard()->setText(url);

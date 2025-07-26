@@ -424,7 +424,7 @@ void Premium::requestPremiumRequiredSlice() {
 				constexpr auto hasPrem = Flag::HasRequirePremiumToWrite;
 				constexpr auto hasStars = Flag::HasStarsPerMessage;
 				user->setStarsPerMessage(stars);
-				user->setFlags((user->flags() & ~(me | hasPrem | hasStars))
+				user->setFlags((user->flags() & ~me)
 					| known
 					| (requirePremium ? (me | hasPrem) : Flag())
 					| (stars ? hasStars : Flag()));
@@ -619,6 +619,8 @@ auto PremiumGiftCodeOptions::requestStarGifts()
 			MTP_int(0)
 		)).done([=](const MTPpayments_StarGifts &result) {
 			result.match([&](const MTPDpayments_starGifts &data) {
+				_peer->owner().processUsers(data.vusers());
+				_peer->owner().processChats(data.vchats());
 				_giftsHash = data.vhash().v;
 				const auto &list = data.vgifts().v;
 				const auto session = &_peer->session();
@@ -805,6 +807,12 @@ std::optional<Data::StarGift> FromTL(
 		if (!document->sticker()) {
 			return std::optional<Data::StarGift>();
 		}
+		const auto releasedById = data.vreleased_by()
+			? peerFromMTP(*data.vreleased_by())
+			: PeerId();
+		const auto releasedBy = releasedById
+			? session->data().peer(releasedById).get()
+			: nullptr;
 		return std::optional<Data::StarGift>(Data::StarGift{
 			.id = uint64(data.vid().v),
 			.stars = int64(data.vstars().v),
@@ -812,12 +820,16 @@ std::optional<Data::StarGift> FromTL(
 			.starsToUpgrade = int64(data.vupgrade_stars().value_or_empty()),
 			.starsResellMin = int64(resellPrice),
 			.document = document,
+			.releasedBy = releasedBy,
 			.resellTitle = qs(data.vtitle().value_or_empty()),
 			.resellCount = int(data.vavailability_resale().value_or_empty()),
 			.limitedLeft = remaining.value_or_empty(),
 			.limitedCount = total.value_or_empty(),
+			.perUserTotal = data.vper_user_total().value_or_empty(),
+			.perUserRemains = data.vper_user_remains().value_or_empty(),
 			.firstSaleDate = data.vfirst_sale_date().value_or_empty(),
 			.lastSaleDate = data.vlast_sale_date().value_or_empty(),
+			.requirePremium = data.is_require_premium(),
 			.upgradable = data.vupgrade_stars().has_value(),
 			.birthday = data.is_birthday(),
 			.soldOut = data.is_sold_out(),
@@ -841,6 +853,12 @@ std::optional<Data::StarGift> FromTL(
 			|| !pattern->document->sticker()) {
 			return std::optional<Data::StarGift>();
 		}
+		const auto releasedById = data.vreleased_by()
+			? peerFromMTP(*data.vreleased_by())
+			: PeerId();
+		const auto releasedBy = releasedById
+			? session->data().peer(releasedById).get()
+			: nullptr;
 		auto result = Data::StarGift{
 			.id = uint64(data.vid().v),
 			.unique = std::make_shared<Data::UniqueGift>(Data::UniqueGift{
@@ -852,14 +870,17 @@ std::optional<Data::StarGift> FromTL(
 				.ownerId = (data.vowner_id()
 					? peerFromMTP(*data.vowner_id())
 					: PeerId()),
+				.releasedBy = releasedBy,
 				.number = data.vnum().v,
 				.starsForResale = int(data.vresell_stars().value_or_empty()),
 				.model = *model,
 				.pattern = *pattern,
 			}),
 			.document = model->document,
+			.releasedBy = releasedBy,
 			.limitedLeft = (total - data.vavailability_issued().v),
 			.limitedCount = total,
+			.requirePremium = data.is_require_premium(),
 		};
 		const auto unique = result.unique.get();
 		for (const auto &attribute : data.vattributes().v) {
@@ -896,6 +917,11 @@ std::optional<Data::SavedStarGift> FromTL(
 		.manageId = (to->isUser()
 			? Id::User(data.vmsg_id().value_or_empty())
 			: Id::Chat(to, data.vsaved_id().value_or_empty())),
+		.collectionIds = (data.vcollection_id()
+			? (data.vcollection_id()->v
+				| ranges::views::transform(&MTPint::v)
+				| ranges::to_vector)
+			: std::vector<int>()),
 		.message = (data.vmessage()
 			? TextWithEntities{
 				.text = qs(data.vmessage()->data().vtext()),

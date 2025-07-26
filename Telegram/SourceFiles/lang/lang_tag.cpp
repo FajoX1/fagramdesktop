@@ -7,7 +7,7 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 */
 #include "lang/lang_tag.h"
 
-#include "core/stars_amount.h"
+#include "core/credits_amount.h"
 #include "lang/lang_keys.h"
 #include "ui/text/text.h"
 #include "base/qt/qt_common_adapters.h"
@@ -949,21 +949,34 @@ QString FormatCountDecimal(int64 number) {
 }
 
 QString FormatExactCountDecimal(float64 number) {
-	return QLocale().toString(number, 'f', QLocale::FloatingPointShortest);
+	const auto locale = QLocale();
+	if (qFuzzyCompare(number, base::SafeRound(number))) {
+		return locale.toString(int64(base::SafeRound(number)));
+	}
+
+	// Somehow using QLocale::FloatingPointShortest sometimes produces
+	// "0.8500000000000001" on some systems / locales,
+	// so I want to stick to 6 digits max (default third argument value).
+	auto result = locale.toString(number, 'f');
+	const auto zero = locale.zeroDigit();
+	while (result.endsWith(zero)) {
+		result.chop(1);
+	}
+	return result;
 }
 
-ShortenedCount FormatStarsAmountToShort(StarsAmount amount) {
+ShortenedCount FormatCreditsAmountToShort(CreditsAmount amount) {
 	const auto attempt = FormatCountToShort(amount.whole());
 	return attempt.shortened ? attempt : ShortenedCount{
-		.string = FormatStarsAmountDecimal(amount),
+		.string = FormatCreditsAmountDecimal(amount),
 	};
 }
 
-QString FormatStarsAmountDecimal(StarsAmount amount) {
+QString FormatCreditsAmountDecimal(CreditsAmount amount) {
 	return FormatExactCountDecimal(amount.value());
 }
 
-QString FormatStarsAmountRounded(StarsAmount amount) {
+QString FormatCreditsAmountRounded(CreditsAmount amount) {
 	const auto value = amount.value();
 	return FormatExactCountDecimal(base::SafeRound(value * 100.) / 100.);
 }
@@ -991,14 +1004,11 @@ PluralResult Plural(
 	const auto t = f;
 
 	const auto useNonDefaultPlural = (ChoosePlural != ChoosePluralDefault)
-		&& Lang::details::IsNonDefaultPlural(keyBase);
-	const auto shift = (useNonDefaultPlural ? ChoosePlural : ChoosePluralDefault)(
-		(integer ? i : -1),
-		i,
-		v,
-		w,
-		f,
-		t);
+		&& (keyBase == kPluralKeyBaseForCloudValue
+			|| Lang::details::IsNonDefaultPlural(keyBase));
+	const auto shift = (useNonDefaultPlural
+		? ChoosePlural
+		: ChoosePluralDefault)((integer ? i : -1), i, v, w, f, t);
 	if (integer) {
 		const auto round = qRound(value);
 		if (type == lt_count_short) {
