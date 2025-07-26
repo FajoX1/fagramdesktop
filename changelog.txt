@@ -1,6 +1,6 @@
 1.1.10 (05.06.2025)
 
-- Updated to tdesktop v5.15.0
+- Updated to tdesktop v5.16.6
 
 1.1.9 (30.04.2025)
 
