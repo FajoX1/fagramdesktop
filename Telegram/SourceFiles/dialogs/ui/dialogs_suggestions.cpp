@@ -211,6 +211,7 @@ RecentRow::RecentRow(not_null<PeerData*> peer)
 					st::dialogRowOpenBotRecent.button.style,
 					tr::lng_profile_open_app_short(tr::now));
 			}
+		}
 	}
 	return nullptr;
 }()) {
@@ -393,61 +394,6 @@ const style::PeerListItem &ChannelRow::computeSt(
 	return _active ? st::recentPeersItemActive : st::recentPeersItem;
 }
 
-} // namespace
-
-
-class Suggestions::ObjectListController
-	: public PeerListController
-	, public base::has_weak_ptr {
-public:
-	explicit ObjectListController(
-		not_null<Window::SessionController*> window);
-
-	[[nodiscard]] not_null<Window::SessionController*> window() const {
-		return _window;
-	}
-	[[nodiscard]] rpl::producer<int> count() const {
-		return _count.value();
-	}
-	[[nodiscard]] rpl::producer<not_null<PeerData*>> chosen() const {
-		return _chosen.events();
-	}
-
-	Main::Session &session() const override {
-		return _window->session();
-	}
-
-	void rowClicked(not_null<PeerListRow*> row) override;
-	void rowMiddleClicked(not_null<PeerListRow*> row) override;
-	bool rowTrackPress(not_null<PeerListRow*> row) override;
-	void rowTrackPressCancel() override;
-	bool rowTrackPressSkipMouseSelection() override;
-
-	bool processTouchEvent(not_null<QTouchEvent*> e);
-	void setupTouchChatPreview(not_null<Ui::ElasticScroll*> scroll);
-
-protected:
-	[[nodiscard]] int countCurrent() const;
-	void setCount(int count);
-
-	[[nodiscard]] bool expandedCurrent() const;
-	[[nodiscard]] rpl::producer<bool> expanded() const;
-
-	void setupPlainDivider(rpl::producer<QString> title);
-	void setupExpandDivider(rpl::producer<QString> title);
-
-private:
-	const not_null<Window::SessionController*> _window;
-
-	std::optional<QPoint> _chatPreviewTouchGlobal;
-	rpl::event_stream<> _touchCancelRequests;
-	rpl::event_stream<not_null<PeerData*>> _chosen;
-	rpl::variable<int> _count;
-	rpl::variable<Ui::RpWidget*> _toggleExpanded = nullptr;
-	rpl::variable<bool> _expanded = false;
-
-};
-
 class RecentsController final : public Suggestions::ObjectListController {
 public:
 	using RightActionCallback = Fn<void(not_null<PeerData*>)>;
@@ -563,6 +509,61 @@ private:
 	History *_activeHistory = nullptr;
 	bool _requested = false;
 	rpl::lifetime _lifetime;
+
+};
+
+} // namespace
+
+
+class Suggestions::ObjectListController
+	: public PeerListController
+	, public base::has_weak_ptr {
+public:
+	explicit ObjectListController(
+		not_null<Window::SessionController*> window);
+
+	[[nodiscard]] not_null<Window::SessionController*> window() const {
+		return _window;
+	}
+	[[nodiscard]] rpl::producer<int> count() const {
+		return _count.value();
+	}
+	[[nodiscard]] rpl::producer<not_null<PeerData*>> chosen() const {
+		return _chosen.events();
+	}
+
+	Main::Session &session() const override {
+		return _window->session();
+	}
+
+	void rowClicked(not_null<PeerListRow*> row) override;
+	void rowMiddleClicked(not_null<PeerListRow*> row) override;
+	bool rowTrackPress(not_null<PeerListRow*> row) override;
+	void rowTrackPressCancel() override;
+	bool rowTrackPressSkipMouseSelection() override;
+
+	bool processTouchEvent(not_null<QTouchEvent*> e);
+	void setupTouchChatPreview(not_null<Ui::ElasticScroll*> scroll);
+
+protected:
+	[[nodiscard]] int countCurrent() const;
+	void setCount(int count);
+
+	[[nodiscard]] bool expandedCurrent() const;
+	[[nodiscard]] rpl::producer<bool> expanded() const;
+
+	void setupPlainDivider(rpl::producer<QString> title);
+	void setupExpandDivider(rpl::producer<QString> title);
+
+private:
+	const not_null<Window::SessionController*> _window;
+
+	std::optional<QPoint> _chatPreviewTouchGlobal;
+	rpl::event_stream<> _touchCancelRequests;
+	rpl::event_stream<not_null<PeerData*>> _chosen;
+	rpl::variable<int> _count;
+	rpl::variable<Ui::RpWidget*> _toggleExpanded = nullptr;
+	rpl::variable<bool> _expanded = false;
 
 };
 
@@ -776,7 +777,7 @@ RecentsController::RecentsController(
 	not_null<Window::SessionController*> window,
 	RecentPeersList list,
 	RightActionCallback rightActionCallback)
-: ObjectListController(window)
+: Suggestions::ObjectListController(window)
 , _recent(std::move(list))
 , _rightActionCallback(std::move(rightActionCallback)) {
 }
@@ -927,7 +928,7 @@ void RecentsController::subscribeToEvents() {
 
 MyChannelsController::MyChannelsController(
 	not_null<Window::SessionController*> window)
-: ObjectListController(window) {
+: Suggestions::ObjectListController(window) {
 }
 
 void MyChannelsController::prepare() {
@@ -1058,7 +1059,7 @@ base::unique_qptr<Ui::PopupMenu> MyChannelsController::rowContextMenu(
 
 RecommendationsController::RecommendationsController(
 	not_null<Window::SessionController*> window)
-: ObjectListController(window) {
+: Suggestions::ObjectListController(window) {
 }
 
 void RecommendationsController::prepare() {
@@ -1130,7 +1131,7 @@ void RecommendationsController::appendRow(not_null<ChannelData*> channel) {
 
 RecentAppsController::RecentAppsController(
 	not_null<Window::SessionController*> window)
-: ObjectListController(window) {
+: Suggestions::ObjectListController(window) {
 }
 
 void RecentAppsController::prepare() {
@@ -1237,7 +1238,7 @@ PopularAppsController::PopularAppsController(
 	not_null<Window::SessionController*> window,
 	Fn<bool(not_null<PeerData*>)> filterOut,
 	rpl::producer<> filterOutRefreshes)
-: ObjectListController(window)
+: Suggestions::ObjectListController(window)
 , _filterOut(std::move(filterOut))
 , _filterOutRefreshes(std::move(filterOutRefreshes)) {
 }
@@ -2155,7 +2156,7 @@ auto Suggestions::setupRecentPeers(RecentPeersList recentPeers)
 	const auto raw = result.get();
 	const auto list = raw->wrap->entity();
 
-	raw->selectJump = [list](Qt::Key direction, int pageSize) {
+	raw->selectJump = [=](Qt::Key direction, int pageSize) {
 		const auto had = list->hasSelection();
 		if (direction == Qt::Key()) {
 			return had ? JumpResult::Applied : JumpResult::NotApplied;
@@ -2261,7 +2262,7 @@ auto Suggestions::setupRecommendations() -> std::unique_ptr<ObjectList> {
 	const auto raw = result.get();
 	const auto list = raw->wrap->entity();
 
-	raw->selectJump = [list](Qt::Key direction, int pageSize) {
+	raw->selectJump = [=](Qt::Key direction, int pageSize) {
 		const auto had = list->hasSelection();
 		if (direction == Qt::Key()) {
 			return had ? JumpResult::Applied : JumpResult::NotApplied;
@@ -2376,7 +2377,7 @@ auto Suggestions::setupPopularApps() -> std::unique_ptr<ObjectList> {
 	const auto raw = result.get();
 	const auto list = raw->wrap->entity();
 
-	raw->selectJump = [list](Qt::Key direction, int pageSize) {
+	raw->selectJump = [=](Qt::Key direction, int pageSize) {
 		const auto had = list->hasSelection();
 		if (direction == Qt::Key()) {
 			return had ? JumpResult::Applied : JumpResult::NotApplied;
