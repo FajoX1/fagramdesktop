@@ -7,7 +7,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
-<<<<<<<< HEAD:Telegram/SourceFiles/ui/controls/swipe_handler_data.h
 namespace Ui::Controls {
 
 struct SwipeContextData final {
@@ -34,7 +33,7 @@ struct SwipeBackResult final {
 };
 
 } // namespace Ui::Controls
-========
+
 namespace Dialogs::Ui {
 
 using namespace ::Ui;
