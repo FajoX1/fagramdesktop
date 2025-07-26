@@ -438,8 +438,11 @@ void PeerData::paintUserpic(
 		return;
 	}
 	const auto size = context.size;
+	const auto x = context.position.x();
+	const auto y = context.position.y();
 	const auto cloud = userpicCloudImage(view);
 	const auto ratio = style::DevicePixelRatio();
+	const auto forceCircle = (context.shape == Ui::PeerUserpicShape::Circle);
 
 	bool use_default_rounding = FASettings::JsonSettings::GetBool("use_default_rounding");
 
@@ -449,7 +452,9 @@ void PeerData::paintUserpic(
 			cloud,
 			cloud ? nullptr : ensureEmptyUserpic().get(),
 			size * ratio,
-			!forceCircle && isForum());
+			!forceCircle && isForum() 
+				? Ui::PeerUserpicShape::Forum 
+				: Ui::PeerUserpicShape::Circle);
 		p.drawImage(QRect(x, y, size, size), view.cached);
 	}
 	
@@ -459,7 +464,9 @@ void PeerData::paintUserpic(
 			cloud,
 			cloud ? nullptr : ensureEmptyUserpic().get(),
 			size * ratio,
-			isForum());
+			isForum() 
+				? Ui::PeerUserpicShape::Forum 
+				: Ui::PeerUserpicShape::Circle);
 
 		p.save();
 		auto hq = PainterHighQualityEnabler(p);
