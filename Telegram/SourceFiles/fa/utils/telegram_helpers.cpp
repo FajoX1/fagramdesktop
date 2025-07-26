@@ -134,13 +134,16 @@ void readReactions(base::weak_ptr<Data::Thread> weakThread) {
 		return;
 	}
 	const auto topic = thread->asTopic();
+	const auto sublist = thread->asSublist();
 	const auto peer = thread->peer();
 	const auto rootId = topic ? topic->rootId() : 0;
 	using Flag = MTPmessages_ReadReactions::Flag;
 	peer->session().api().request(MTPmessages_ReadReactions(
-		MTP_flags(rootId ? Flag::f_top_msg_id : Flag(0)),
+		MTP_flags((rootId ? Flag::f_top_msg_id : Flag(0))
+			| (sublist ? Flag::f_saved_peer_id : Flag(0))),
 		peer->input,
-		MTP_int(rootId)
+		MTP_int(rootId),
+		sublist ? sublist->sublistPeer()->input : MTPInputPeer()
 	)).done([=](const MTPmessages_AffectedHistory &result)
 	{
 		const auto offset = peer->session().api().applyAffectedHistory(
@@ -149,7 +152,7 @@ void readReactions(base::weak_ptr<Data::Thread> weakThread) {
 		if (offset > 0) {
 			readReactions(weakThread);
 		} else {
-			peer->owner().history(peer)->clearUnreadReactionsFor(rootId);
+			peer->owner().history(peer)->clearUnreadReactionsFor(rootId, sublist);
 		}
 	}).send();
 }
