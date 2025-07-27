@@ -159,6 +159,7 @@ menuIconCaptionShow: icon {{ "menu/caption_show", menuIconColor }};
 menuIconCaptionHide: icon {{ "menu/caption_hide", menuIconColor }};
 menuIconAsTopics: icon {{ "menu/mode_topics", menuIconColor }};
 menuIconAsMessages: icon {{ "menu/mode_messages", menuIconColor }};
+menuIconGoToBeginning: icon{{ "menu/go_to_beginning", menuIconColor }};
 menuIconTagFilter: icon{{ "menu/tag_filter", menuIconColor }};
 menuIconTagRename: icon{{ "menu/tag_rename", menuIconColor }};
 menuIconTagRemove: icon {{ "menu/tag_remove", menuIconColor }};
