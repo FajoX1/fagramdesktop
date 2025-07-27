@@ -1,18 +1,18 @@
-1.1.10 (05.06.2025)
+1.1.10 (05.06.25)
 
 - Updated to tdesktop v5.16.6
 
-1.1.9 (30.04.2025)
+1.1.9 (30.04.25)
 
 - Fix translation
 - Use domain fagram.app
 - Updated to tdesktop v5.13.1
 
-1.1.8 (05.03.2025)
+1.1.8 (05.03.25)
 
 - Fixed join channel button
 
-1.1.7 (05.03.2025)
+1.1.7 (05.03.25)
 
 - Message's details
 - Channel's discuss button
@@ -22,7 +22,7 @@
 - Fixed some functions's translation
 - Updated to tdesktop v5.11.1
 
-1.1.6 (28.01.2025)
+1.1.6 (28.01.25)
 
 - Local tg premium
 - Changed changelog link
@@ -30,36 +30,36 @@
 - Fixed FAgram icon on some platforms
 - Updated to tdesktop v5.10.7
 
-1.1.5 (05.01.2025)
+1.1.5 (05.01.25)
 
 — Force snow setting
 — OTA updates
 — Crowdin translation
 — Updated to tdesktop v5.10.0
 
-1.1.4 (08.12.2024)
+1.1.4 (08.12.24)
 
 — Read after action (Beta)
 — Hide open webapp button in chatlist
 — Updated to tdesktop v5.9.0
 
-1.1.3 (01.12.2024)
+1.1.3 (01.12.24)
 
 — Using our tg api keys
 — Fixed message from Telegram about "old version"
 
-1.1.2 (29.11.2024)
+1.1.2 (29.11.24)
 
 — Max optimized
 — Updated to Tdesktop v5.8.5
 
-1.1.1 (24.11.2024)
+1.1.1 (24.11.24)
 
 — Setting use default rounding
 — Auto restart while switching settings that need client restart
 — Updated to tdesktop v5.8.3
 
-1.1.0 (22.11.2024)
+1.1.0 (22.11.24)
 
 — Easy choose server while adding account
 — Links tg://fa/restart tg://fa/quit tg://fa/update
@@ -70,7 +70,7 @@
 — Fixed about box
 — Updated to tdesktop v5.8.1
 
-1.0.9 (12.11.2024)
+1.0.9 (12.11.24)
 
 — Now you can turn off debug logs
 — Clean debug logs moved to Logs section
@@ -80,12 +80,12 @@
 — Now if translation not found, it use english translation but if english translation not found it use key
 — Some fix with translation
 
-1.0.8 (08.11.2024)
+1.0.8 (08.11.24)
 
 — Multi language for FAgram preferences
 — Updated to tdesktop v5.7.2
 
-1.0.7 (26.10.2024)
+1.0.7 (26.10.24)
 
 — DC Status view
 — Clean Debug Logs button
@@ -98,30 +98,30 @@
 — Added section Donate
 — Updated to tdesktop v5.6.4
 
-1.0.6 (19.10.2024)
+1.0.6 (19.10.24)
 
 — Add hide All chats folder
 — Fixed bio view
 — Changed api id and api hash to TDesktop's api keys
 — Updated to TDesktop 5.6.3
 
-1.0.5 (09.10.2024)
+1.0.5 (09.10.24)
 
 — Hide your phone number in settings
 — Show sticker and emoji pack owner
 — Solar icons (thx design480)
 — Updated to TDesktop 5.6.1
 
-1.0.4 (08.10.2024)
+1.0.4 (08.10.24)
 
 — Show registration date of the user
 — Hide stories
 
-1.0.3 (07.10.2024)
+1.0.3 (07.10.24)
 
 — Updated to TDesktop 5.6.0
 
-1.0.2 (05.10.2024)
+1.0.2 (05.10.24)
 
 — Showing peer id
 — Showing dc id
@@ -129,7 +129,7 @@
 — Removed show id by preston
 — Choose rounding avatars, reactions, stories etc.
 
-1.0.1 (30.09.2024)
+1.0.1 (30.09.24)
 
 — Now just copy your phone number on tap in your profile settings
 — Api keys changed to our keys
@@ -140,7 +140,7 @@
 — List of users and channels with dev badges now parsing from fagram.fajox.one
 — Use FAgram Settings to control FAgram features
 
-1.0.0 (19.09.2024)
+1.0.0 (19.09.24)
 
 — Seconds in time of message
 — Dev badge on fagram devs/channels

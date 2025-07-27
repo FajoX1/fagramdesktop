@@ -1664,6 +1664,7 @@ const std::vector<LocalUrlHandler> &LocalUrlHandlers() {
 			u"^ayu/?(.+)?(#|$)"_q,
 			FAUrlHandlers::HandleSomeText
 		},
+		{
 			u"^call/?\\?slug=([a-zA-Z0-9\\.\\_\\-]+)(&|$)"_q,
 			ResolveConferenceCall
 		},

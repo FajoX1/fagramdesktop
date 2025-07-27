@@ -8,6 +8,7 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 
 #include <utility>
 
+#include "base/weak_ptr.h"
 #include "fa/lang/fa_lang.h"
 #include "fa/ui/menu_item_subtext.h"
 
@@ -67,7 +68,7 @@ protected:
 
 };
 
-class ActionStickerPackAuthor final : public ActionWithSubText
+class ActionStickerPackAuthor final : public ActionWithSubText, public base::has_weak_ptr
 {
 public:
 	ActionStickerPackAuthor(not_null<Menu::Menu*> menu, not_null<Main::Session*> session, ID authorId);
@@ -223,7 +224,7 @@ ActionStickerPackAuthor::ActionStickerPackAuthor(not_null<Menu::Menu*> menu,
 }
 
 void ActionStickerPackAuthor::searchAuthor(ID authorId) {
-	const auto pointer = Ui::MakeWeak(this);
+	const auto pointer = base::make_weak(this);
 	searchById(authorId,
 			   _session,
 			   [=](const QString &username, UserData *user)

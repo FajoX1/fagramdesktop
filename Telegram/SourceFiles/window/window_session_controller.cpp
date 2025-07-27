@@ -3511,34 +3511,4 @@ bool CheckAndJumpToNearChatsFilter(
 	return true;
 }
 
-bool CheckAndJumpToNearChatsFilter(
-		not_null<SessionController*> controller,
-		bool isNext,
-		bool jump) {
-	const auto id = controller->activeChatsFilterCurrent();
-	const auto session = &controller->session();
-	const auto list = &session->data().chatsFilters().list();
-	const auto index = int(ranges::find(
-		*list,
-		id,
-		&Data::ChatFilter::id
-	) - begin(*list));
-	if (index == list->size() && id != 0) {
-		return false;
-	}
-	const auto changed = index + (isNext ? 1 : -1);
-	if (changed >= int(list->size()) || changed < 0) {
-		return false;
-	}
-	if (changed > Data::PremiumLimits(session).dialogFiltersCurrent()) {
-		return false;
-	}
-	if (jump) {
-		controller->setActiveChatsFilter((changed >= 0)
-			? (*list)[changed].id()
-			: 0);
-	}
-	return true;
-}
-
 } // namespace Window

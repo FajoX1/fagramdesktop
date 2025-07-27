@@ -7,14 +7,20 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 */
 #pragma once
 
+#include <optional>
+
 #include "base/object_ptr.h"
 #include "base/timer.h"
+#include "base/weak_ptr.h"
+#include "boxes/peer_list_box.h"
 #include "dialogs/ui/top_peers_strip.h"
+#include "rpl/rpl.h"
 #include "ui/controls/swipe_handler_data.h"
 #include "ui/effects/animations.h"
 #include "ui/rp_widget.h"
 
 class PeerListContent;
+class QTouchEvent;
 
 namespace Data {
 class Thread;
@@ -110,7 +116,49 @@ public:
 		return _openBotMainAppRequests.events();
 	}
 
-	class ObjectListController;
+	class ObjectListController
+		: public PeerListController
+		, public base::has_weak_ptr {
+	public:
+		explicit ObjectListController(
+			not_null<Window::SessionController*> window);
+
+		[[nodiscard]] not_null<Window::SessionController*> window() const;
+		[[nodiscard]] rpl::producer<int> count() const;
+		[[nodiscard]] rpl::producer<not_null<PeerData*>> chosen() const;
+
+		Main::Session &session() const override;
+
+		void rowClicked(not_null<PeerListRow*> row) override;
+		void rowMiddleClicked(not_null<PeerListRow*> row) override;
+		bool rowTrackPress(not_null<PeerListRow*> row) override;
+		void rowTrackPressCancel() override;
+		bool rowTrackPressSkipMouseSelection() override;
+
+		bool processTouchEvent(not_null<QTouchEvent*> e);
+		void setupTouchChatPreview(not_null<Ui::ElasticScroll*> scroll);
+
+	protected:
+		[[nodiscard]] int countCurrent() const;
+		void setCount(int count);
+
+		[[nodiscard]] bool expandedCurrent() const;
+		[[nodiscard]] rpl::producer<bool> expanded() const;
+
+		void setupPlainDivider(rpl::producer<QString> title);
+		void setupExpandDivider(rpl::producer<QString> title);
+
+	private:
+		const not_null<Window::SessionController*> _window;
+
+		std::optional<QPoint> _chatPreviewTouchGlobal;
+		rpl::event_stream<> _touchCancelRequests;
+		rpl::event_stream<not_null<PeerData*>> _chosen;
+		rpl::variable<int> _count;
+		rpl::variable<Ui::RpWidget*> _toggleExpanded = nullptr;
+		rpl::variable<bool> _expanded = false;
+
+	};
 
 private:
 	using MediaType = Storage::SharedMediaType;

@@ -65,8 +65,6 @@ rpl::producer<TextWithEntities> Text3() {
 void AboutBox(not_null<Ui::GenericBox*> box) {
 	box->setTitle(rpl::single(u"FAgram Desktop"_q));
 
-void AboutBox::prepare() {
-	setTitle(rpl::single(u"FAgram Desktop"_q));
 	auto layout = box->verticalLayout();
 
 	const auto version = layout->add(
