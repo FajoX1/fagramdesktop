@@ -293,9 +293,6 @@ public:
 	[[nodiscard]] int starsPerMessageChecked() const;
 	[[nodiscard]] Data::StarsRating starsRating() const;
 
-	[[nodiscard]] int starsPerMessage() const;
-	[[nodiscard]] int starsPerMessageChecked() const;
-
 	[[nodiscard]] UserData *asBot();
 	[[nodiscard]] const UserData *asBot() const;
 	[[nodiscard]] UserData *asUser();
