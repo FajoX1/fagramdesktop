@@ -419,6 +419,10 @@ void CreateModerateMessagesBox(
 					st::moderateBoxExpandIconDown,
 					emojiMargin,
 					false));
+			const auto emojiUp = Ui::Text::IconEmoji(
+				&st::moderateBoxExpandIcon);
+			const auto emojiDown = Ui::Text::IconEmoji(
+				&st::moderateBoxExpandIconDown);
 
 			auto label = object_ptr<Ui::FlatLabel>(
 				inner,
@@ -463,9 +467,7 @@ void CreateModerateMessagesBox(
 						Ui::Text::WithEntities);
 			}) | rpl::flatten_latest(
 			) | rpl::start_with_next([=](const TextWithEntities &text) {
-				raw->setMarkedText(
-					Ui::Text::Link(text, u"internal:"_q),
-					Core::TextContext({ .session = session }));
+				raw->setMarkedText(Ui::Text::Link(text, u"internal:"_q));
 			}, label->lifetime());
 
 			Ui::AddSkip(inner);

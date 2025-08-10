@@ -255,6 +255,9 @@ boostLimits: PremiumLimits(defaultPremiumLimits) {
 	gradientFromLeft: true;
 	nonPremiumBg: windowBgRipple;
 }
+negativeStarsLimits: PremiumLimits(boostLimits) {
+	gradientFromLeft: false;
+}
 boostBubble: PremiumBubble(defaultPremiumBubble) {
 	height: 32px;
 	padding: margins(7px, 0px, 11px, 0px);
@@ -262,6 +265,10 @@ boostBubble: PremiumBubble(defaultPremiumBubble) {
 	textSkip: 2px;
 	tailSize: size(14px, 6px);
 	font: font(16px);
+}
+iconOnlyPremiumBubble: PremiumBubble(boostBubble) {
+	padding: margins(7px, 0px, 7px, 0px);
+	textSkip: 0px;
 }
 boostTitleSkip: 32px;
 boostTitle: FlatLabel(defaultFlatLabel) {
@@ -286,6 +293,12 @@ boostText: FlatLabel(defaultFlatLabel) {
 	minWidth: 40px;
 	align: align(top);
 }
+boostTextPending: FlatLabel(boostText) {
+	textFg: windowSubTextFg;
+}
+boostTextNegative: FlatLabel(boostText) {
+	textFg: attentionButtonFg;
+}
 boostReassignText: FlatLabel(defaultFlatLabel) {
 	minWidth: 40px;
 	align: align(top);
@@ -294,6 +307,7 @@ boostBottomSkip: 6px;
 boostBox: Box(premiumPreviewDoubledLimitsBox) {
 	buttonPadding: margins(16px, 12px, 16px, 12px);
 	buttonHeight: 42px;
+	buttonWide: true;
 	button: RoundButton(defaultActiveButton) {
 		height: 42px;
 		textTop: 12px;

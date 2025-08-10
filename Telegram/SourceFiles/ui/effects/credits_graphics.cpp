@@ -26,8 +26,8 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 #include "ui/empty_userpic.h"
 #include "ui/painter.h"
 #include "ui/rect.h"
+#include "ui/text/custom_emoji_instance.h"
 #include "ui/text/format_values.h"
-#include "ui/text/text_custom_emoji.h"
 #include "ui/text/text_utilities.h"
 #include "ui/widgets/fields/number_input.h"
 #include "ui/wrap/padding_wrap.h"
@@ -692,9 +692,23 @@ QImage CreditsWhiteDoubledIcon(int size, float64 outlineRatio) {
 std::unique_ptr<Ui::Text::CustomEmoji> MakeCreditsIconEmoji(
 		int height,
 		int count) {
-	return std::make_unique<Ui::Text::StaticCustomEmoji>(
-		GenerateStars(height, count),
-		u"credits_icon:%1:%2"_q.arg(height).arg(count));
+	return std::make_unique<Ui::CustomEmoji::Internal>(
+		u"credits_icon:%1:%2"_q.arg(height).arg(count),
+		GenerateStars(height, count));
+}
+
+Ui::Text::MarkedContext MakeCreditsIconContext(int height, int count) {
+	auto customEmojiFactory = [=](
+		QStringView data,
+		const Ui::Text::MarkedContext &context
+	) -> std::unique_ptr<Ui::Text::CustomEmoji> {
+		return MakeCreditsIconEmoji(height, count);
+	};
+	return { .customEmojiFactory = std::move(customEmojiFactory) };
+}
+
+TextWithEntities MakeCreditsIconEntity() {
+	return Ui::Text::SingleCustomEmoji(Ui::kCreditsCurrency);
 }
 
 Ui::Text::MarkedContext MakeCreditsIconContext(int height, int count) {

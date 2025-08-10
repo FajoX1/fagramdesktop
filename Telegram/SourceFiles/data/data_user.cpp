@@ -75,8 +75,8 @@ bool ApplyBotVerifierSettings(
 	const auto &data = rating->data();
 	return {
 		.level = data.vlevel().v,
-		.levelStars = int(data.vcurrent_level_stars().v),
-		.currentStars = int(data.vstars().v),
+		.stars = int(data.vstars().v),
+		.thisLevelStars = int(data.vcurrent_level_stars().v),
 		.nextLevelStars = int(data.vnext_level_stars().value_or_empty()),
 	};
 }
@@ -886,6 +886,12 @@ void ApplyUserUpdate(not_null<UserData*> user, const MTPDuserFull &update) {
 	user->setBotVerifyDetails(
 		ParseBotVerifyDetails(update.vbot_verification()));
 	user->setStarsRating(ParseStarsRating(update.vstars_rating()));
+	if (user->isSelf()) {
+		user->owner().setPendingStarsRating({
+			.value = ParseStarsRating(update.vstars_my_pending_rating()),
+			.date = update.vstars_my_pending_rating_date().value_or_empty(),
+		});
+	}
 
 	if (const auto gifts = update.vdisallowed_gifts()) {
 		const auto &data = gifts->data();

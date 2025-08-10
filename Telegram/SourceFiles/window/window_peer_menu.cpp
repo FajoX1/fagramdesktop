@@ -43,6 +43,7 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 #include "calls/calls_instance.h"
 #include "inline_bots/bot_attach_web_view.h" // InlineBots::PeerType.
 #include "ui/toast/toast.h"
+#include "ui/text/custom_emoji_helper.h"
 #include "ui/text/format_values.h"
 #include "ui/text/text_utilities.h"
 #include "ui/widgets/chat_filters_tabs_strip.h"
@@ -80,6 +81,7 @@ https://github.com/fajox1/fagramdesktop/blob/master/LEGAL
 #include "info/info_memento.h"
 #include "info/channel_statistics/boosts/info_boosts_widget.h"
 #include "info/channel_statistics/earn/info_channel_earn_widget.h"
+#include "info/channel_statistics/earn/earn_icons.h"
 #include "info/profile/info_profile_cover.h"
 #include "info/profile/info_profile_values.h"
 #include "info/statistics/info_statistics_widget.h"
@@ -639,7 +641,7 @@ void Filler::addStoryArchive() {
 		if ([[maybe_unused]] const auto strong = weak.get()) {
 			controller->showSection(Info::Stories::Make(
 				channel,
-				Info::Stories::Tab::Archive));
+				Info::Stories::ArchiveId()));
 		}
 	}, &st::menuIconStoriesArchiveSection);
 }
@@ -1716,6 +1718,7 @@ void Filler::addToggleFee() {
 	}, feeRemoved ? &st::menuIconEarn : &st::menuIconCancelFee);
 	_addAction({ .isSeparator = true });
 	_addAction({ .make = [=](not_null<Ui::RpWidget*> actionParent) {
+		auto helper = Ui::Text::CustomEmojiHelper();
 		const auto text = feeRemoved
 			? tr::lng_context_fee_free(
 				tr::now,
@@ -1727,8 +1730,8 @@ void Filler::addToggleFee() {
 				lt_name,
 				TextWithEntities{ user->shortName() },
 				lt_amount,
-				user->owner().customEmojiManager().ministarEmoji(
-					{ 0, st::giftBoxByStarsStarTop, 0, 0 }
+				helper.paletteDependent(
+					Ui::Earn::IconCurrencyEmojiSmall()
 				).append(Lang::FormatCountDecimal(
 					user->owner().commonStarsPerMessage(parent)
 				)),

@@ -594,7 +594,7 @@ Cover::Cover(
 , _botVerify(
 	std::make_unique<Badge>(
 		this,
-		st::infoPeerBadge,
+		st::infoBotVerifyBadge,
 		&peer->session(),
 		BotVerifyBadgeForPeer(peer),
 		nullptr,
@@ -662,9 +662,12 @@ Cover::Cover(
 , _starsRating(_peer->isUser()
 	? std::make_unique<Ui::StarsRating>(
 		this,
-		st::infoStarsRating,
+		_controller->uiShow(),
+		_peer->isSelf() ? QString() : _peer->shortName(),
 		Data::StarsRatingValue(_peer),
-		_parentForTooltip)
+		(_peer->isSelf()
+			? [=] { return _peer->owner().pendingStarsRating(); }
+			: Fn<Data::StarsRatingPending()>()))
 	: nullptr)
 , _status(this, _st.status)
 , _showLastSeen(this, tr::lng_status_lastseen_when(), _st.showLastSeen)
@@ -680,15 +683,7 @@ Cover::Cover(
 	if (!_peer->isMegagroup()) {
 		_status->setAttribute(Qt::WA_TransparentForMouseEvents);
 		if (const auto rating = _starsRating.get()) {
-			_status->widthValue() | rpl::start_with_next([=](int width) {
-				rating->setMinimalAddedWidth(width);
-			}, rating->lifetime());
-			const auto session = &_peer->session();
-			rating->learnMoreRequests() | rpl::start_with_next([=] {
-				const auto &appConfig = session->appConfig();
-				UrlClickHandler::Open(appConfig.starsRatingLearnMoreUrl());
-			}, rating->lifetime());
-			_statusShift = rating->collapsedWidthValue();
+			_statusShift = rating->widthValue();
 			_statusShift.changes() | rpl::start_with_next([=] {
 				refreshStatusGeometry(width());
 			}, _status->lifetime());
@@ -1114,7 +1109,7 @@ void Cover::refreshStatusGeometry(int newWidth) {
 	auto statusWidth = newWidth - statusLeft - _st.rightSkip;
 	_status->resizeToNaturalWidth(statusWidth);
 	_status->moveToLeft(statusLeft, _st.statusTop, newWidth);
-	const auto left = _st.statusLeft + _status->textMaxWidth();
+	const auto left = statusLeft + _status->textMaxWidth();
 	_showLastSeen->moveToLeft(
 		left + _st.showLastSeenPosition.x(),
 		_st.showLastSeenPosition.y(),

@@ -372,7 +372,6 @@ void Line::recache(const QSize &s) {
 		}
 	};
 	const auto textPadding = st::premiumLineTextSkip;
-	const auto textTop = (s.height() - _leftLabel.minHeight()) / 2;
 	const auto rwidth = _rightLabel.maxWidth();
 	const auto pen = [&](bool gradient) {
 		return gradient ? st::activeButtonFg : _st.nonPremiumFg;
@@ -385,8 +384,10 @@ void Line::recache(const QSize &s) {
 		if (_dynamic) {
 			p.setFont(st::normalFont);
 			p.setPen(pen(_st.gradientFromLeft));
-			_leftLabel.drawLeft(p, textPadding, textTop, width, width);
-			_rightLabel.drawRight(p, textPadding, textTop, rwidth, width);
+			const auto leftTop = (s.height() - _leftLabel.minHeight()) / 2;
+			_leftLabel.drawLeft(p, textPadding, leftTop, width, width);
+			const auto rightTop = (s.height() - _rightLabel.minHeight()) / 2;
+			_rightLabel.drawRight(p, textPadding, rightTop, rwidth, width);
 		}
 		_leftPixmap = std::move(leftPixmap);
 	}
@@ -398,8 +399,10 @@ void Line::recache(const QSize &s) {
 		if (_dynamic) {
 			p.setFont(st::normalFont);
 			p.setPen(pen(!_st.gradientFromLeft));
-			_leftLabel.drawLeft(p, textPadding, textTop, width, width);
-			_rightLabel.drawRight(p, textPadding, textTop, rwidth, width);
+			const auto leftTop = (s.height() - _leftLabel.minHeight()) / 2;
+			_leftLabel.drawLeft(p, textPadding, leftTop, width, width);
+			const auto rightTop = (s.height() - _rightLabel.minHeight()) / 2;
+			_rightLabel.drawRight(p, textPadding, rightTop, rwidth, width);
 		}
 		_rightPixmap = std::move(rightPixmap);
 	}
@@ -504,9 +507,17 @@ void AddLimitRow(
 		LimitRowLabels labels,
 		rpl::producer<LimitRowState> state,
 		const style::margins &padding) {
-	parent->add(
+	const auto color = std::move(labels.activeLineBg);
+	const auto line = parent->add(
 		object_ptr<Line>(parent, st, std::move(labels), std::move(state)),
 		padding);
+	if (color) {
+		line->setColorOverride(color());
+
+		style::PaletteChanged() | rpl::start_with_next([=] {
+			line->setColorOverride(color());
+		}, line->lifetime());
+	}
 }
 
 void AddAccountsRow(
