@@ -240,8 +240,6 @@ private:
 
 	ClickHandlerPtr _link;
 
-	ClickHandlerPtr _link;
-
 };
 
 class Gif final : public RadialProgressItem {
