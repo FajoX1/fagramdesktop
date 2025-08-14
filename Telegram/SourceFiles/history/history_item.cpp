@@ -5820,43 +5820,6 @@ void HistoryItem::setServiceMessageByAction(const MTPmessageAction &action) {
 		return result;
 	};
 
-	auto prepareGiftTon = [&](
-			const MTPDmessageActionGiftTon &action) {
-		auto result = PreparedServiceText();
-		const auto isSelf = (_from->id == _from->session().userPeerId());
-		const auto peer = isSelf ? _history->peer : _from;
-		_history->session().giftBoxStickersPacks().tonLoad();
-		const auto amount = action.vamount().v;
-		const auto currency = qs(action.vcurrency());
-		const auto cost = AmountAndStarCurrency(
-			&_history->session(),
-			amount,
-			currency);
-		const auto anonymous = _from->isServiceUser();
-		if (anonymous) {
-			result.text = tr::lng_action_gift_received_anonymous(
-				tr::now,
-				lt_cost,
-				cost,
-				Ui::Text::WithEntities);
-		} else {
-			result.links.push_back(peer->createOpenLink());
-			result.text = isSelf
-				? tr::lng_action_gift_sent(tr::now,
-					lt_cost,
-					cost,
-					Ui::Text::WithEntities)
-				: tr::lng_action_gift_received(
-					tr::now,
-					lt_user,
-					Ui::Text::Link(peer->shortName(), 1), // Link 1.
-					lt_cost,
-					cost,
-					Ui::Text::WithEntities);
-		}
-		return result;
-	};
-
 	auto prepareGiftPrize = [&](
 			const MTPDmessageActionPrizeStars &action) {
 		auto result = PreparedServiceText();
