@@ -241,11 +241,6 @@ bool SponsoredMessages::canHaveFor(not_null<HistoryItem*> item) const {
 		&& item->isRegular();
 }
 
-bool SponsoredMessages::canHaveFor(not_null<HistoryItem*> item) const {
-	return item->history()->peer->isBroadcast()
-		&& item->isRegular();
-}
-
 bool SponsoredMessages::isTopBarFor(not_null<History*> history) const {
 	if (peerIsUser(history->peer->id)) {
 		if (const auto user = history->peer->asUser()) {
