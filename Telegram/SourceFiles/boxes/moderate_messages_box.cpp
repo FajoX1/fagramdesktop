@@ -403,22 +403,6 @@ void CreateModerateMessagesBox(
 			const auto container = wrap->entity();
 			wrap->toggle(false, anim::type::instant);
 
-			const auto session = &participants.front()->session();
-			const auto emojiMargin = QMargins(
-				-st::moderateBoxExpandInnerSkip,
-				-st::moderateBoxExpandInnerSkip / 2,
-				0,
-				0);
-			const auto emojiUp = Ui::Text::SingleCustomEmoji(
-				session->data().customEmojiManager().registerInternalEmoji(
-					st::moderateBoxExpandIcon,
-					emojiMargin,
-					false));
-			const auto emojiDown = Ui::Text::SingleCustomEmoji(
-				session->data().customEmojiManager().registerInternalEmoji(
-					st::moderateBoxExpandIconDown,
-					emojiMargin,
-					false));
 			const auto emojiUp = Ui::Text::IconEmoji(
 				&st::moderateBoxExpandIcon);
 			const auto emojiDown = Ui::Text::IconEmoji(
