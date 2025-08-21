@@ -711,18 +711,4 @@ TextWithEntities MakeCreditsIconEntity() {
 	return Ui::Text::SingleCustomEmoji(Ui::kCreditsCurrency);
 }
 
-Ui::Text::MarkedContext MakeCreditsIconContext(int height, int count) {
-	auto customEmojiFactory = [=](
-		QStringView data,
-		const Ui::Text::MarkedContext &context
-	) -> std::unique_ptr<Ui::Text::CustomEmoji> {
-		return MakeCreditsIconEmoji(height, count);
-	};
-	return { .customEmojiFactory = std::move(customEmojiFactory) };
-}
-
-TextWithEntities MakeCreditsIconEntity() {
-	return Ui::Text::SingleCustomEmoji(Ui::kCreditsCurrency);
-}
-
 } // namespace Ui
