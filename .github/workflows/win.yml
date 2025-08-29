@@ -60,7 +60,6 @@ jobs:
         name: Native Tools Command Prompt.
         with:
           arch: ${{ matrix.arch }}
-          sdk: ${{ env.SDK }}
 
       - name: NuGet sources.
         run: |
